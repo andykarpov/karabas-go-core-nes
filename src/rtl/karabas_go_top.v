@@ -55,8 +55,8 @@ module karabas_go_top (
    //---------------------------
    output wire SD_CS_N,
    output wire SD_CLK,
-   inout wire SD_DI,
-   inout wire SD_DO,
+   output wire SD_DI,
+   input wire SD_DO,
 	input wire SD_DET_N,
 
    //---------------------------
@@ -444,11 +444,11 @@ assign loader_reset = fileloader_reset;
 		doubler_x, 
 		doubler_pixel, 
 		doubler_sync, 
-		1'b0); // sw0
+		1'b0); // sw0 - border, 0 = off
   
   wire [14:0] pixel_in = pallut[color];
   
-  Hq2x hq2x(clk, pixel_in, 0, // sw5 
+  Hq2x hq2x(clk, pixel_in, 1'b1, // 1 - disable hq2x 
             scanline[8],        // reset_frame
             (cycle[8:3] == 42), // reset_line
             doubler_x,          // 0-511 for line 1, or 512-1023 for line 2.

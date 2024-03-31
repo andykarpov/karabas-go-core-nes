@@ -161,15 +161,15 @@ begin
 		spi_miso when MCU_SS = '0' else 
 		SD2_MISO when MCU_SPI_SD2_SS = '0' else
 		FT_MISO when MCU_SPI_FT_SS = '0' else 
-		'1';		
+		'1';
 	
-	FT_SCK <= MCU_SCK;
-	FT_CS_N <= MCU_SPI_FT_SS;
-	FT_MOSI <= MCU_MOSI;
+	FT_SCK <= MCU_SCK when MCU_SPI_FT_SS = '0' else '1';
+	FT_CS_N <= MCU_SPI_FT_SS when MCU_SPI_FT_SS = '0' else '1';
+	FT_MOSI <= MCU_MOSI when MCU_SPI_FT_SS = '0' else '1';
 	
-	SD2_SCK <= MCU_SCK;
-	SD2_CS_N <= MCU_SPI_SD2_SS;
-	SD2_MOSI <= MCU_MOSI;
+	SD2_SCK <= MCU_SCK when MCU_SPI_SD2_SS = '0' else '1'; -- todo!
+	SD2_CS_N <= MCU_SPI_SD2_SS when MCU_SPI_SD2_SS = '0' else '1';
+	SD2_MOSI <= MCU_MOSI when MCU_SPI_SD2_SS = '0' else '1';
 	
 	process (CLK)
 	begin

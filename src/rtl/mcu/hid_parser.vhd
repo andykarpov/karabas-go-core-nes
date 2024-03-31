@@ -119,6 +119,7 @@ begin
 			joy_l_do <= (others => '0');
 			joy_r_do <= (others => '0');
 		elsif rising_edge(CLK) then
+		-- A B Sel St U D L R 
 			joy_l_do(0) <= joy_l(SC_BTN_A) or kb_l(SC_BTN_A);
 			joy_l_do(1) <= joy_l(SC_BTN_B) or kb_l(SC_BTN_B);
 			joy_l_do(2) <= joy_l(SC_BTN_MODE) or kb_l(SC_BTN_MODE);
