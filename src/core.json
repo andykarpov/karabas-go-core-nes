@@ -1,7 +1,7 @@
 {
     "id": "nes",
     "name": "NES",
-    "build": "24033101",
+    "build": "24033102",
     "bitstream": "karabas_go_top.bin",
     "visible": true,
     "type": "fileloader",

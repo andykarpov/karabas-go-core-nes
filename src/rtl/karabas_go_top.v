@@ -426,7 +426,7 @@ assign loader_reset = fileloader_reset;
   wire doubler_sync;
   wire [9:0] vga_hcounter, doubler_x;
   wire [9:0] vga_vcounter;
-  wire [3:0] vid_r, vig_g, vid_b;
+  wire [3:0] vid_r, vid_g, vid_b;
   
   assign video_r = {vid_r, vid_r};
   assign video_g = {vid_g, vid_g};
