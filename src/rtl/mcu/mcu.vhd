@@ -155,7 +155,7 @@ begin
 		  state_dbg_o    => open
 	);
 
-	spi_di <= CMD_DEBUG_DATA & DEBUG_DATA;
+	spi_di <= CMD_NOPE & x"0000";
 	
 	MCU_MISO <= 
 		spi_miso when MCU_SS = '0' else 
@@ -163,13 +163,13 @@ begin
 		FT_MISO when MCU_SPI_FT_SS = '0' else 
 		'1';
 	
-	FT_SCK <= MCU_SCK when MCU_SPI_FT_SS = '0' else '1';
-	FT_CS_N <= MCU_SPI_FT_SS when MCU_SPI_FT_SS = '0' else '1';
-	FT_MOSI <= MCU_MOSI when MCU_SPI_FT_SS = '0' else '1';
+	FT_SCK <= MCU_SCK;
+	FT_CS_N <= MCU_SPI_FT_SS;
+	FT_MOSI <= MCU_MOSI;
 	
-	SD2_SCK <= MCU_SCK when MCU_SPI_SD2_SS = '0' else '1'; -- todo!
-	SD2_CS_N <= MCU_SPI_SD2_SS when MCU_SPI_SD2_SS = '0' else '1';
-	SD2_MOSI <= MCU_MOSI when MCU_SPI_SD2_SS = '0' else '1';
+	SD2_SCK <= MCU_SCK;
+	SD2_CS_N <= MCU_SPI_SD2_SS;
+	SD2_MOSI <= MCU_MOSI;
 	
 	process (CLK)
 	begin
