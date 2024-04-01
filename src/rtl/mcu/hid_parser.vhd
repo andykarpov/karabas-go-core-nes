@@ -123,8 +123,8 @@ begin
 			joy_r_do <= (others => '0');
 		elsif rising_edge(CLK) then
 		-- A B Sel St U D L R 
-			joy_l_do(0) <= joy_l(SC_BTN_A) or kb_l(SC_BTN_A);
-			joy_l_do(1) <= joy_l(SC_BTN_B) or kb_l(SC_BTN_B);
+			joy_l_do(0) <= joy_l(SC_BTN_B) or kb_l(SC_BTN_B);
+			joy_l_do(1) <= joy_l(SC_BTN_A) or kb_l(SC_BTN_A);
 			joy_l_do(2) <= joy_l(SC_BTN_C) or kb_l(SC_BTN_C);
 			joy_l_do(3) <= joy_l(SC_BTN_START) or kb_l(SC_BTN_START);
 			joy_l_do(4) <= joy_l(SC_BTN_UP) or kb_l(SC_BTN_UP);
@@ -132,8 +132,8 @@ begin
 			joy_l_do(6) <= joy_l(SC_BTN_LEFT) or kb_l(SC_BTN_LEFT);
 			joy_l_do(7) <= joy_l(SC_BTN_RIGHT) or kb_l(SC_BTN_RIGHT);
 
-			joy_r_do(0) <= joy_r(SC_BTN_A) or kb_r(SC_BTN_A);
-			joy_r_do(1) <= joy_r(SC_BTN_B) or kb_r(SC_BTN_B);
+			joy_r_do(0) <= joy_r(SC_BTN_B) or kb_r(SC_BTN_B);
+			joy_r_do(1) <= joy_r(SC_BTN_A) or kb_r(SC_BTN_A);
 			joy_r_do(2) <= joy_r(SC_BTN_C) or kb_r(SC_BTN_C);
 			joy_r_do(3) <= joy_r(SC_BTN_START) or kb_r(SC_BTN_START);
 			joy_r_do(4) <= joy_r(SC_BTN_UP) or kb_r(SC_BTN_UP);
