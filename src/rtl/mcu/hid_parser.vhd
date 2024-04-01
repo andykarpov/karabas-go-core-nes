@@ -86,6 +86,9 @@ begin
 					-- Space -> kb_l B
 					when X"2c" => kb_l(SC_BTN_B) <= '1';
 					
+					-- Enter -> kb_l A
+					when X"28" => kb_l(SC_BTN_A) <= '1';
+					
 					-- Letters
 					when X"1a" => kb_l(SC_BTN_UP) <= '1'; -- W					
 					when X"04" => kb_l(SC_BTN_LEFT) <= '1'; -- A
@@ -94,7 +97,7 @@ begin
 					when X"1d" => kb_l(SC_BTN_A) <= '1'; -- Z
 					when X"1b" => kb_l(SC_BTN_B) <= '1'; -- X
 					when X"06" => kb_l(SC_BTN_START) <= '1'; -- C
-					when X"19" => kb_l(SC_BTN_MODE) <= '1';	-- V
+					when X"19" => kb_l(SC_BTN_C) <= '1';	-- V
 
 					when X"0c" => kb_r(SC_BTN_UP) <= '1'; -- I
 					when X"0d" => kb_r(SC_BTN_LEFT) <= '1'; -- J
@@ -103,7 +106,7 @@ begin
 					when X"12" => kb_r(SC_BTN_A) <= '1'; -- O
 					when X"13" => kb_r(SC_BTN_B) <= '1'; -- P
 					when X"10" => kb_r(SC_BTN_START) <= '1'; -- M
-					when X"11" => kb_r(SC_BTN_MODE) <= '1'; -- N
+					when X"11" => kb_r(SC_BTN_C) <= '1'; -- N
 					
 					when others => null;
 				end case;
@@ -122,7 +125,7 @@ begin
 		-- A B Sel St U D L R 
 			joy_l_do(0) <= joy_l(SC_BTN_A) or kb_l(SC_BTN_A);
 			joy_l_do(1) <= joy_l(SC_BTN_B) or kb_l(SC_BTN_B);
-			joy_l_do(2) <= joy_l(SC_BTN_MODE) or kb_l(SC_BTN_MODE);
+			joy_l_do(2) <= joy_l(SC_BTN_C) or kb_l(SC_BTN_C);
 			joy_l_do(3) <= joy_l(SC_BTN_START) or kb_l(SC_BTN_START);
 			joy_l_do(4) <= joy_l(SC_BTN_UP) or kb_l(SC_BTN_UP);
 			joy_l_do(5) <= joy_l(SC_BTN_DOWN) or kb_l(SC_BTN_DOWN);
@@ -131,7 +134,7 @@ begin
 
 			joy_r_do(0) <= joy_r(SC_BTN_A) or kb_r(SC_BTN_A);
 			joy_r_do(1) <= joy_r(SC_BTN_B) or kb_r(SC_BTN_B);
-			joy_r_do(2) <= joy_r(SC_BTN_MODE) or kb_r(SC_BTN_MODE);
+			joy_r_do(2) <= joy_r(SC_BTN_C) or kb_r(SC_BTN_C);
 			joy_r_do(3) <= joy_r(SC_BTN_START) or kb_r(SC_BTN_START);
 			joy_r_do(4) <= joy_r(SC_BTN_UP) or kb_r(SC_BTN_UP);
 			joy_r_do(5) <= joy_r(SC_BTN_DOWN) or kb_r(SC_BTN_DOWN);
