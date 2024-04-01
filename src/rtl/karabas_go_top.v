@@ -114,8 +114,8 @@ module karabas_go_top (
 	inout wire MCU_MOSI,
 	output wire MCU_MISO,
 	
-	output wire MCU_SPI_FT_CS_N,
-	output wire MCU_SPI_SD2_CS_N,
+	input wire MCU_SPI_FT_CS_N,
+	input wire MCU_SPI_SD2_CS_N,
 	
 	inout wire [1:0] MCU_SPI_IO,
 	
