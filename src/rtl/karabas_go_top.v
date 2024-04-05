@@ -176,13 +176,14 @@ assign FLASH_HOLD_N = 1'b1;
 assign FT_OE_N = 1'b1;
 
 // clock
-wire clk;
+wire clk, clk_vga;
 wire locked;
 wire areset;
 
 nes_clk clock_21mhz(
  .CLK_IN1(CLK_50MHZ), 
- .CLK_OUT1(clk), 
+ .CLK_OUT1(clk), // 21.x
+ .CLK_OUT2(clk_vga), // 25.2
  .LOCKED(locked)
 );	
 assign areset = ~locked;
@@ -312,6 +313,7 @@ wire video_hsync, video_vsync;
 
 overlay overlay(
 	.CLK(clk),
+	.CLK_VGA(clk_vga),
 	.RGB_I({video_r[7:0], video_g[7:0], video_b[7:0]}),
 	.RGB_O({osd_r[7:0], osd_g[7:0], osd_b[7:0]}),
 	.HSYNC_I(video_hsync),
@@ -422,7 +424,7 @@ assign loader_reset = fileloader_reset;
       ramfail <= ram_busy && loader_write || ramfail;
   end
 
-  wire [14:0] doubler_pixel;
+/*  wire [14:0] doubler_pixel;
   wire doubler_sync;
   wire [9:0] vga_hcounter, doubler_x;
   wire [9:0] vga_vcounter;
@@ -454,6 +456,24 @@ assign loader_reset = fileloader_reset;
             doubler_x,          // 0-511 for line 1, or 512-1023 for line 2.
             doubler_sync,       // new frame has just started
             doubler_pixel);     // pixel is outputted
+				*/
+				
+  vga vga(
+	.I_CLK(clk),
+	.I_CLK_VGA(clk_vga),
+	.I_COLOR(color),
+	.I_HCNT(cycle),
+	.I_VCNT(scanline),
+	.O_HSYNC(video_hsync),
+	.O_VSYNC(video_vsync),
+	.O_RED(video_r),
+	.O_GREEN(video_g),
+	.O_BLUE(video_b),
+	.O_HCNT(),
+	.O_VCNT(),
+	.O_H(),
+	.O_BLANK()
+  );
 				
   assign audio_out_l = {sample[15] ^ 1'b1, sample[14:0]};
   assign audio_out_r = {sample[15] ^ 1'b1, sample[14:0]};
@@ -475,8 +495,8 @@ assign loader_reset = fileloader_reset;
   
 	ODDR2 u_v_clk (
 		.Q(V_CLK),
-		.C0(clk),
-		.C1(~clk),
+		.C0(clk_vga),
+		.C1(~clk_vga),
 		.CE(1'b1),
 		.D0(1'b1),
 		.D1(1'b0),

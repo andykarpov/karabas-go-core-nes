@@ -5,7 +5,8 @@ use IEEE.std_logic_unsigned.all;
 
 entity overlay is
 	port (
-		CLK		: in std_logic;
+		CLK : in std_logic;
+		CLK_VGA		: in std_logic;
 		RGB_I 	: in std_logic_vector(23 downto 0);
 		RGB_O 	: out std_logic_vector(23 downto 0);
 		HSYNC_I 	: in std_logic;
@@ -75,8 +76,8 @@ architecture rtl of overlay is
 	 
 	 signal flash_cnt : std_logic_vector(7 downto 0);
 	 
-	 constant h_offset : natural := 24; --120;
-	 constant v_offset : natural := 24; --72;	 
+	 constant h_offset : natural := 48; --120;
+	 constant v_offset : natural := 32; --72;	 
 begin
 
 	hsync_pol <= '1';
@@ -86,9 +87,9 @@ begin
 	vsync <= VSYNC_I;
 	
 	-- hcnt, vcnt, width, height
-	process(CLK)
+	process(CLK_VGA)
 	begin
-		if falling_edge(CLK) then
+		if falling_edge(CLK_VGA) then
 			
 				prev_hsync <= hsync;				
 				if hsync = hsync_pol and prev_hsync /= hsync then -- new line (start of hsync pulse)
@@ -126,7 +127,7 @@ begin
 		  clka   => CLK,
 		  
         addrb  => rom_addr,
-        clkb   => CLK,
+        clkb   => CLK_VGA,
         doutb  => font_word
     );
 
@@ -139,7 +140,7 @@ begin
         wea    => vram_wr,
 
         addrb  => addr_read,
-        clkb   => CLK,
+        clkb   => CLK_VGA,
         doutb  => vram_do
     );
 
@@ -153,9 +154,9 @@ begin
     video_on <= '1' when (OSD_OVERLAY = '1' or OSD_POPUP = '1') else '0';
 	 
 	 -- mem read character / attribute
-	 process (CLK, vram_do)
+	 process (CLK_VGA, vram_do)
 	 begin
-		if (rising_edge(CLK)) then 
+		if (rising_edge(CLK_VGA)) then 
 				if (OSD_POPUP = '1') then 
 					case (hcnt(3 downto 0)) is
 						when "1110" =>
@@ -185,18 +186,18 @@ begin
 	 end process;
 	 
 	 -- pixel load from font
-	 process (CLK)
+	 process (CLK_VGA)
 	 begin
-		if rising_edge(CLK) then
+		if rising_edge(CLK_VGA) then
 			if char_x = "111" then 
 				rom_addr <= vram_do(15 downto 8) & char_y;
 			end if;
 		end if;
 	end process;	
 	
-	process (CLK) 
+	process (CLK_VGA) 
 	begin
-		if falling_edge(CLK) then
+		if falling_edge(CLK_VGA) then
 			load_pixel <= '0';
 			if ((OSD_POPUP = '0' and char_x = "111") or (OSD_POPUP = '1' and hcnt(3 downto 0) = "1111")) and load_pixel = '0' then 
 				load_pixel <= '1';
@@ -207,7 +208,7 @@ begin
 	-- pixel doubler
 	U_PIX : entity work.pix_doubler
 	port map(
-		CLK => CLK,
+		CLK => CLK_VGA,
 		LOAD => load_pixel,
 		D => font_word,
 		QUAD => OSD_POPUP,

@@ -55,8 +55,8 @@
 // "Output    Output      Phase     Duty      Pk-to-Pk        Phase"
 // "Clock    Freq (MHz) (degrees) Cycle (%) Jitter (ps)  Error (ps)"
 //----------------------------------------------------------------------------
-// CLK_OUT1____21.429______0.000______50.0______320.961____213.839
-// CLK_OUT2____85.714______0.000______50.0______240.962____213.839
+// CLK_OUT1____21.512______0.000______50.0______338.146____247.402
+// CLK_OUT2____25.000______0.000______50.0______328.261____247.402
 //
 //----------------------------------------------------------------------------
 // "Input Clock   Freq (MHz)    Input Jitter (UI)"
@@ -101,13 +101,13 @@ module nes_clk
   #(.BANDWIDTH              ("OPTIMIZED"),
     .CLK_FEEDBACK           ("CLKFBOUT"),
     .COMPENSATION           ("SYSTEM_SYNCHRONOUS"),
-    .DIVCLK_DIVIDE          (1),
-    .CLKFBOUT_MULT          (12),
+    .DIVCLK_DIVIDE          (2),
+    .CLKFBOUT_MULT          (37),
     .CLKFBOUT_PHASE         (0.000),
-    .CLKOUT0_DIVIDE         (28),
+    .CLKOUT0_DIVIDE         (43),
     .CLKOUT0_PHASE          (0.000),
     .CLKOUT0_DUTY_CYCLE     (0.500),
-    .CLKOUT1_DIVIDE         (7),
+    .CLKOUT1_DIVIDE         (37),
     .CLKOUT1_PHASE          (0.000),
     .CLKOUT1_DUTY_CYCLE     (0.500),
     .CLKIN_PERIOD           (20.000),
