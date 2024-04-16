@@ -1,0 +1,17 @@
+{
+    "id": "nes",
+    "name": "NES",
+    "build": "24041616",
+    "bitstream": "karabas_mini_top.bin",
+    "visible": true,
+    "type": "fileloader",
+    "dir": "nes",
+    "filename" : "",
+    "extensions": ".nes,.ines",
+    "order": 6,
+    "eeprom_bank": 255,
+    "roms": [],
+    "osd": [
+        {"type": "T", "name": "Reset", "hotkey": "F12"}
+    ]
+}
