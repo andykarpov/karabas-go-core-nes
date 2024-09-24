@@ -56,6 +56,11 @@ architecture rtl of hid_parser is
 	signal kb_l: std_logic_vector(12 downto 0) := (others => '0');
 	signal kb_r: std_logic_vector(12 downto 0) := (others => '0');	
 	
+	signal cnt_autofire : std_logic_vector(20 downto 0) := (others => '0');
+	signal autofire_freq : std_logic := '0';
+	signal autofire_l : std_logic_vector(1 downto 0) := "00";
+	signal autofire_r : std_logic_vector(1 downto 0) := "00";	
+	
 begin 
 
 	-- incoming data of pressed keys from usb hid report
@@ -123,8 +128,8 @@ begin
 			joy_r_do <= (others => '0');
 		elsif rising_edge(CLK) then
 		-- A B Sel St U D L R 
-			joy_l_do(0) <= joy_l(SC_BTN_B) or kb_l(SC_BTN_B);
-			joy_l_do(1) <= joy_l(SC_BTN_A) or kb_l(SC_BTN_A);
+			joy_l_do(0) <= joy_l(SC_BTN_B) or kb_l(SC_BTN_B) or autofire_l(1);
+			joy_l_do(1) <= joy_l(SC_BTN_A) or kb_l(SC_BTN_A) or autofire_l(0);
 			joy_l_do(2) <= joy_l(SC_BTN_C) or kb_l(SC_BTN_C);
 			joy_l_do(3) <= joy_l(SC_BTN_START) or kb_l(SC_BTN_START);
 			joy_l_do(4) <= joy_l(SC_BTN_UP) or kb_l(SC_BTN_UP);
@@ -132,14 +137,39 @@ begin
 			joy_l_do(6) <= joy_l(SC_BTN_LEFT) or kb_l(SC_BTN_LEFT);
 			joy_l_do(7) <= joy_l(SC_BTN_RIGHT) or kb_l(SC_BTN_RIGHT);
 
-			joy_r_do(0) <= joy_r(SC_BTN_B) or kb_r(SC_BTN_B);
-			joy_r_do(1) <= joy_r(SC_BTN_A) or kb_r(SC_BTN_A);
+			joy_r_do(0) <= joy_r(SC_BTN_B) or kb_r(SC_BTN_B) or autofire_r(1);
+			joy_r_do(1) <= joy_r(SC_BTN_A) or kb_r(SC_BTN_A) or autofire_r(0);
 			joy_r_do(2) <= joy_r(SC_BTN_C) or kb_r(SC_BTN_C);
 			joy_r_do(3) <= joy_r(SC_BTN_START) or kb_r(SC_BTN_START);
 			joy_r_do(4) <= joy_r(SC_BTN_UP) or kb_r(SC_BTN_UP);
 			joy_r_do(5) <= joy_r(SC_BTN_DOWN) or kb_r(SC_BTN_DOWN);
 			joy_r_do(6) <= joy_r(SC_BTN_LEFT) or kb_r(SC_BTN_LEFT);
 			joy_r_do(7) <= joy_r(SC_BTN_RIGHT) or kb_r(SC_BTN_RIGHT);
+		end if;
+	end process;
+	
+	-- autofire
+	process (RESET, CLK)
+	begin
+		if (RESET = '1') then 
+			autofire_l <= "00";
+			autofire_r <= "00";
+		elsif rising_edge(CLK) then
+		
+			-- 12.5 Hz counter
+			if (cnt_autofire = "110010000000000000000") then 
+				cnt_autofire <= (others => '0');
+				autofire_freq <= not autofire_freq;
+			else 
+				cnt_autofire <= cnt_autofire + 1; 				
+			end if;
+		
+			-- assign autofire on x,y buttons
+			autofire_l(0) <= joy_l(SC_BTN_X) and autofire_freq;
+			autofire_l(1) <= joy_l(SC_BTN_Y) and autofire_freq;
+			autofire_r(0) <= joy_r(SC_BTN_X) and autofire_freq;
+			autofire_r(1) <= joy_r(SC_BTN_Y) and autofire_freq;
+		
 		end if;
 	end process;
 
