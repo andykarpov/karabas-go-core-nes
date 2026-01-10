@@ -72,6 +72,10 @@ entity mcu is
 	 DEBUG_ADDR : in std_logic_vector(15 downto 0) := (others => '0');
 	 DEBUG_DATA : in std_logic_vector(15 downto 0) := (others => '0');
 	 
+	 -- hw setup
+	 HWID : out std_logic_vector(7 downto 0) := (others => '0');
+	 DVI_ONLY : out std_logic := '0';
+	 
 	 -- busy
 	 BUSY: buffer std_logic := '1'
 	 
@@ -100,6 +104,7 @@ architecture rtl of mcu is
 	constant CMD_DEBUG_ADDR : std_logic_vector(7 downto 0) := x"30";
 	constant CMD_DEBUG_DATA : std_logic_vector(7 downto 0) := x"31";
 
+	constant CMD_HW_SETUP	: std_logic_vector(7 downto 0) := x"F9";
 	constant CMD_INIT_START	: std_logic_vector(7 downto 0) := x"FD";
 	constant CMD_INIT_DONE	: std_logic_vector(7 downto 0) := x"FE";	
 	constant CMD_NOPE			: std_logic_vector(7 downto 0) := x"FF";
@@ -269,6 +274,14 @@ begin
 						
 					when CMD_FILELOADER =>
 						FILELOAD_RESET <= spi_do(0);
+
+					-- hw setup
+					when CMD_HW_SETUP =>
+						case spi_do(15 downto 8) is
+							when x"00" => HWID <= spi_do(7 downto 0);
+							when x"01" => DVI_ONLY <= spi_do(0);
+							when others => null;
+						end case;
 
 					-- init start
 					when CMD_INIT_START => BUSY <= '1';

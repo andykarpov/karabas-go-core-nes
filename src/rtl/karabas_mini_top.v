@@ -188,6 +188,8 @@ wire [15:0] softsw_command, osd_command;
 wire ft_vga_on;
 wire mcu_busy;
 wire [15:0] debug_data;
+wire [7:0] hwid;
+wire dvi_only;
 
 mcu mcu(
 	.CLK(clk),
@@ -238,6 +240,9 @@ mcu mcu(
 	.SD2_MOSI(SD_DI),
 	.SD2_MISO(SD_DO),
 	.SD2_SCK(SD_CLK),
+	
+	.HWID(hwid),
+	.DVI_ONLY(dvi_only),
 	
 	.DEBUG_ADDR(16'h00),
 	.DEBUG_DATA(debug_data)
@@ -497,13 +502,27 @@ hdmi hdmi(
 	.O_BLUE(tmds_blue)
 );
 
+wire [9:0] dvi_red, dvi_green, dvi_blue;
+
+dvi dvi(
+	.CLK(clk_vga),
+	.RESET(areset),
+	.RGB({osd_r,osd_g,osd_b}),
+	.HSYNC(video_hsync),
+	.VSYNC(video_vsync),
+	.DE(~video_blank),
+	.ENC_RED(dvi_red),
+	.ENC_GREEN(dvi_green),
+	.ENC_BLUE(dvi_blue)
+);
+
 hdmi_out_xilinx hdmiio(
 	.clock_pixel_i(clk_vga),
 	.clock_tdms_i(clk_hdmi),
 	.clock_tdms_n_i(clk_hdmi_n),
-	.red_i(tmds_red),
-	.green_i(tmds_green),
-	.blue_i(tmds_blue),
+	.red_i(dvi_only ? dvi_red : tmds_red),
+	.green_i(dvi_only ? dvi_green : tmds_green),
+	.blue_i(dvi_only ? dvi_blue : tmds_blue),
 	.tmds_out_p(TMDS_P),
 	.tmds_out_n(TMDS_N)
 );	
