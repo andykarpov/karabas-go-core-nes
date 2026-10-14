@@ -106,7 +106,7 @@ module karabas_mini_top (
 	input wire MCU_SCK,
 	inout wire MCU_MOSI,
 	output wire MCU_MISO,	
-	input wire [4:0] MCU_IO,
+	inout wire [4:0] MCU_IO, // [0] burst cs_n, [1] burst ready, [2] sd2 cs_n, [3] ft cs_n, [4] ft clk (mod): input only
 	
 	//---------------------------
 	output wire MIDI_TX,
@@ -191,6 +191,12 @@ wire [15:0] debug_data;
 wire [7:0] hwid;
 wire dvi_only;
 
+// burst transfers from the mcu (karabas-go-firmware docs/burst_protocol.md)
+wire mcu_burst_ready;
+assign MCU_IO[1] = mcu_burst_ready;
+assign MCU_IO[0] = 1'bz;
+assign MCU_IO[4:2] = 3'bzzz;
+
 mcu mcu(
 	.CLK(clk),
 	.N_RESET(~areset),
@@ -202,6 +208,8 @@ mcu mcu(
 	
 	.MCU_SPI_FT_SS(MCU_IO[3]),
 	.MCU_SPI_SD2_SS(MCU_IO[2]),
+	.MCU_BURST_CS_N(MCU_IO[0]),
+	.MCU_BURST_READY(mcu_burst_ready),
 	
 	.KB_STATUS(hid_kb_status),
 	.KB_DAT0(hid_kb_dat0),

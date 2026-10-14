@@ -9,6 +9,11 @@ use IEEE.numeric_std.all;
 use IEEE.std_logic_unsigned.all;
 
 entity mcu is
+	generic (
+		-- highest burst SCK announced to the mcu in the CMD_CAPS answer, MHz (0 = normal link
+		-- clock, 16 MHz). Raise it only on boards where bursts were verified at that clock.
+		BURST_MAX_MHZ : integer := 0
+	);
 	port
 	(
 	 CLK			 : in std_logic;
@@ -22,6 +27,10 @@ entity mcu is
 	 MCU_SPI_FT_SS : in std_logic;
 	 MCU_SPI_SD2_SS : in std_logic;
 
+	 -- burst transfers (karabas-go-firmware docs/burst_protocol.md)
+	 MCU_BURST_CS_N  : in std_logic := '1';
+	 MCU_BURST_READY : out std_logic := '1';
+
 	 -- usb keyboard
 	 KB_STATUS : out std_logic_vector(7 downto 0) := "00000000";
 	 KB_DAT0   : out std_logic_vector(7 downto 0) := "00000000";
@@ -32,8 +41,8 @@ entity mcu is
 	 KB_DAT5   : out std_logic_vector(7 downto 0) := "00000000";
 	 
 	 -- joysticks
-	 JOY_L			: out std_logic_vector(12 downto 0) := "000000000000";
-	 JOY_R			: out std_logic_vector(12 downto 0) := "000000000000";
+	 JOY_L			: out std_logic_vector(12 downto 0) := (others => '0');
+	 JOY_R			: out std_logic_vector(12 downto 0) := (others => '0');
 
 	 -- soft switches command
 	 SOFTSW_COMMAND : out std_logic_vector(15 downto 0);
@@ -104,6 +113,7 @@ architecture rtl of mcu is
 	constant CMD_DEBUG_ADDR : std_logic_vector(7 downto 0) := x"30";
 	constant CMD_DEBUG_DATA : std_logic_vector(7 downto 0) := x"31";
 
+	constant CMD_CAPS		: std_logic_vector(7 downto 0) := x"F7";
 	constant CMD_HW_SETUP	: std_logic_vector(7 downto 0) := x"F9";
 	constant CMD_INIT_START	: std_logic_vector(7 downto 0) := x"FD";
 	constant CMD_INIT_DONE	: std_logic_vector(7 downto 0) := x"FE";	
@@ -128,6 +138,21 @@ architecture rtl of mcu is
 	--state machine for queue writes
 	type qmachine IS(idle, rtc_wr_req, rtc_wr_ack);
 	signal qstate : qmachine := idle;
+
+	-- capabilities answered to the CMD_CAPS query:
+	-- bit 0 = burst write, bit 1 = MCU_BURST_READY is driven; max burst SCK from BURST_MAX_MHZ
+	constant CAPS           : std_logic_vector(7 downto 0) := x"03";
+	constant CAPS_MAX_MHZ   : std_logic_vector(7 downto 0) := std_logic_vector(to_unsigned(BURST_MAX_MHZ, 8));
+	signal caps_req         : std_logic := '0';
+	signal prev_spi_do_valid : std_logic := '0'; -- do_valid lasts more than one CLK at some clocks
+	signal caps_ack         : std_logic := '0';
+	signal di_word          : std_logic_vector(23 downto 0) := x"FF0000"; -- next frame to the mcu
+
+	-- burst receiver
+	signal burst_type       : std_logic_vector(7 downto 0);
+	signal burst_addr       : std_logic_vector(31 downto 0);
+	signal burst_data       : std_logic_vector(7 downto 0);
+	signal burst_wr         : std_logic;
 		 
 begin
 	
@@ -160,7 +185,45 @@ begin
 		  state_dbg_o    => open
 	);
 
-	spi_di <= CMD_NOPE & x"0000";
+	-- frame sent to the mcu in the next transfer: NOP, or the CMD_CAPS answer once after a query.
+	-- spi_slave requests the next word with di_req (like the tsconf queue pop).
+	spi_di <= di_word;
+	process (CLK)
+	begin
+		if rising_edge(CLK) then
+			prev_spi_di_req <= spi_di_req;
+			if spi_di_req = '1' and prev_spi_di_req = '0' then
+				if caps_req /= caps_ack then
+					di_word <= CMD_CAPS & CAPS & CAPS_MAX_MHZ;
+					caps_ack <= caps_req;
+				else
+					di_word <= CMD_NOPE & x"0000";
+				end if;
+			end if;
+		end if;
+	end process;
+
+	--------------------------------------------------------------------------
+	-- MCU burst transfers (second chip select, see docs/burst_protocol.md)
+	--------------------------------------------------------------------------
+
+	U_BURST: entity work.burst_rx
+	port map(
+		CLK      => CLK,
+		SCK      => MCU_SCK,
+		MOSI     => MCU_MOSI,
+		CS_N     => MCU_BURST_CS_N,
+		TYPE_O   => burst_type,
+		ADDR_O   => burst_addr,
+		DATA_O   => burst_data,
+		WR_O     => burst_wr,
+		ACTIVE_O => open
+	);
+
+	-- the rom / file loaders of this core take a byte every clock, so a whole burst can always
+	-- be accepted. A core with a slower consumer puts a fifo here and drops READY while it has
+	-- less than 512 bytes free.
+	MCU_BURST_READY <= '1';
 	
 	MCU_MISO <= 
 		spi_miso when MCU_SS = '0' else 
@@ -289,11 +352,32 @@ begin
 					-- init done
 					when CMD_INIT_DONE => BUSY <= '0';
 
+					-- capability query: answer in the next frame to the mcu
+					when CMD_CAPS =>
+						-- once per frame: spi_do_valid can stay high for two clocks
+						if spi_do(15 downto 8) = x"00" and prev_spi_do_valid = '0' then
+							caps_req <= not caps_req;
+						end if;
+
 					-- nope
 					when CMD_NOPE => null;
 					
 					when others => null;
 				end case;
+			end if;
+
+			prev_spi_do_valid <= spi_do_valid;
+
+			-- burst data: the same loader signals as the classic bank + data commands
+			-- (the write strobes follow the address change below)
+			if burst_wr = '1' then
+				if burst_type = CMD_ROMDATA then
+					ROMLOAD_ADDR <= burst_addr;
+					ROMLOAD_DATA <= burst_data;
+				elsif burst_type = CMD_FILEDATA then
+					FILELOAD_ADDR <= burst_addr;
+					FILELOAD_DATA <= burst_data;
+				end if;
 			end if;
 		end if;
 	end process;
