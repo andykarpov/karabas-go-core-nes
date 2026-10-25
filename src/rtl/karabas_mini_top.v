@@ -417,101 +417,35 @@ overlay overlay(
 
 //--------- NES --------------
 
-// NES Palette -> RGB332 conversion
-reg [14:0] pallut[0:63];
-initial $readmemh("nes_palette.txt", pallut);
-  
 wire [8:0] cycle;
 wire [8:0] scanline;
 wire [15:0] sample;
 wire [5:0] color;
-wire [21:0] memory_addr;
-wire memory_read_cpu, memory_read_ppu;
-wire memory_write;
-wire [7:0] memory_din_cpu, memory_din_ppu;
-wire [7:0] memory_dout;
-wire [31:0] dbgadr;
-wire [1:0] dbgctr;
-
-wire joypad_strobe;
-wire [1:0] joypad_clock;
-reg [7:0] joypad_bits, joypad_bits2;
-reg [1:0] last_joypad_clock;
-
-reg [1:0] nes_ce;
-
-// --------------- Loader 
-
-wire [21:0] loader_addr;
-wire [7:0] loader_write_data;
-wire loader_write;
-wire [31:0] mapper_flags;
 wire loader_done, loader_fail;
 
-assign loader_reset = fileloader_reset;
-  
-  GameLoader loader(
-    clk, 
-    loader_reset, 
-	 fileloader_data, 
-	 fileloader_wr,
-	 loader_addr, 
-	 loader_write_data, 
-	 loader_write,
-	 mapper_flags,
-	 loader_done,
-	 loader_fail,
-	 debug_data
-	);
-	
-  wire reset_nes = (kb_reset || !loader_done);
-  wire run_mem = (nes_ce == 0) && !reset_nes;
-  wire run_nes = (nes_ce == 3) && !reset_nes;
+nes_system nes_system(
+	.clk(clk),
+	.reset(kb_reset),
+	.loader_reset(fileloader_reset),
+	.loader_data(fileloader_data),
+	.loader_wr(fileloader_wr),
+	.loader_done(loader_done),
+	.loader_fail(loader_fail),
+	.debug_data(debug_data),
+	.joy_l(nes_joy_l),
+	.joy_r(nes_joy_r),
+	.color(color),
+	.cycle(cycle),
+	.scanline(scanline),
+	.sample(sample),
+	.MA(MA[18:0]),
+	.MD(MD[7:0]),
+	.MWR_N(MWR_N[0])
+);
+assign MWR_N[1] = 1'b1;
+assign MRD_N = 2'b00;
+assign MA[20:19] = 2'b00;
 
-  // NES is clocked at every 4th cycle.
-  always @(posedge clk)
-    nes_ce <= nes_ce + 1;
-    
-  NES nes(clk, reset_nes, run_nes,
-          mapper_flags,
-          sample, color,
-          joypad_strobe, joypad_clock, {joypad_bits2[0], joypad_bits[0]},
-          5'b11111, // sw
-          memory_addr,
-          memory_read_cpu, memory_din_cpu,
-          memory_read_ppu, memory_din_ppu,
-          memory_write, memory_dout,
-          cycle, scanline,
-          dbgadr,
-          dbgctr
-   );
-
-  // This is the memory controller to access the board's SRAM
-  wire ram_busy;
-  reg [13:0] debugaddr;
-  wire [15:0] debugdata;
-
-  MemoryController  memory( clk,
-                            memory_read_cpu && run_mem, 
-                            memory_read_ppu && run_mem,
-                            memory_write && run_mem || loader_write,
-                            loader_write ? loader_addr : memory_addr,
-                            loader_write ? loader_write_data : memory_dout,
-                            memory_din_cpu, memory_din_ppu, ram_busy,
-                            MWR_N[0], MA[18:0], MD[7:0],
-                            debugaddr, debugdata);
-  assign MWR_N[1] = 1'b1;
-  assign MRD_N = 2'b00;
-  assign MA[20:19] = 2'b00;
-
-  reg ramfail;
-  always @(posedge clk) begin
-    if (loader_reset)
-      ramfail <= 0;
-    else
-      ramfail <= ram_busy && loader_write || ramfail;
-  end
-				
   vga vga(
 	.I_CLK(clk),
 	.I_CLK_VGA(clk_vga),
@@ -531,21 +465,6 @@ assign loader_reset = fileloader_reset;
 				
   assign audio_out_l = {sample[15] ^ 1'b1, sample[14:0]};
   assign audio_out_r = {sample[15] ^ 1'b1, sample[14:0]};
-  
-  always @(posedge clk) begin
-	if (joypad_strobe) begin
-		joypad_bits <= nes_joy_l;
-		joypad_bits2 <= nes_joy_r;
-	end
-	
-	if (!joypad_clock[0] && last_joypad_clock[0]) begin 
-		joypad_bits <= {1'b0, joypad_bits[7:1]};
-	end
-	if (!joypad_clock[1] && last_joypad_clock[1]) begin
-		joypad_bits2 <= {1'b0, joypad_bits2[7:1]};
-	end
-	last_joypad_clock <= joypad_clock;
-  end
   
 // ------------ HDMI ----------------
 

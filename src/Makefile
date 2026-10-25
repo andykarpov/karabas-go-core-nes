@@ -34,7 +34,7 @@ MAP = -logic_opt off -ol high -xe n -t 1 -xt 0 -register_duplication off -r 4 -g
 PAR = -ol high -xe n -mt 4
 
 # included or read by the sources, not in the prj
-INCLUDES = $(wildcard ../modules/rtl/mcu/*.vh) rtl/osd/osd_font.hex rtl/nes/nes_palette.txt rtl/nes/oam_palette.txt $(addprefix rtl/nes/,MicroCode.v cpu.v apu.v ppu.v mmu.v)
+INCLUDES = $(wildcard ../modules/rtl/mcu/*.vh) rtl/osd/osd_font.hex rtl/nes/oam_palette.txt $(addprefix rtl/nes/,MicroCode.v cpu.v apu.v ppu.v mmu.v)
 
 .PHONY: all clean $(BOARDS) $(BOARDS:=-xst) $(BOARDS:=-impl) $(BOARDS:=-core) $(BOARDS:=-report)
 
