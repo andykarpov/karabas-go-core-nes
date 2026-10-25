@@ -17,6 +17,8 @@ module tb_nes (
 	input wire loader_wr,
 	output wire loader_done,
 	output wire loader_fail,
+	output wire [63:0] mapper_flags,
+	output wire [31:0] rom_crc,
 	input wire [7:0] joy_l,
 	input wire [7:0] joy_r,
 	output wire [5:0] color,
@@ -36,6 +38,7 @@ nes_system dut (
 	.clk(clk), .reset(reset),
 	.loader_reset(loader_reset), .loader_data(loader_data), .loader_wr(loader_wr),
 	.loader_done(loader_done), .loader_fail(loader_fail), .debug_data(debug_data),
+	.mapper_flags(mapper_flags), .rom_crc(rom_crc),
 	.joy_l(joy_l), .joy_r(joy_r),
 	.color(color), .cycle(cycle), .scanline(scanline), .sample(sample),
 	.MA(ma), .MD(md), .MWR_N(mwr_n)

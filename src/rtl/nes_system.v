@@ -20,6 +20,8 @@ module nes_system (
 	input wire loader_wr,
 	output wire loader_done,
 	output wire loader_fail,
+	output wire [63:0] mapper_flags, // of the game (GameLoader, NES_MiSTer layout)
+	output wire [31:0] rom_crc,      // CRC-32 of its PRG and CHR ROM
 	output wire [15:0] debug_data,
 
 	// joypads: A, B, Select, Start, Up, Down, Left, Right in bits 0..7, 1 = pressed
@@ -58,8 +60,10 @@ reg [1:0] nes_ce;
 wire [21:0] loader_addr;
 wire [7:0] loader_write_data;
 wire loader_write;
-wire [31:0] mapper_flags;
+// mapper_flags: the layout of NES_MiSTer; the mappers here use bits 16:0
+wire loader_trainer;
 reg aux_req = 1'b0;
+reg clear_done = 1'b0;
 
   GameLoader loader(
     clk,
@@ -72,11 +76,13 @@ reg aux_req = 1'b0;
 	 mapper_flags,
 	 loader_done,
 	 loader_fail,
+	 loader_trainer,
+	 rom_crc,
 	 debug_data
 	);
 
-  // (the last byte of the loader may still wait for its slot when it says done)
-  wire reset_nes = (reset || !loader_done || aux_req);
+  // (the last byte of the loader may still wait for its slot when it says done; then the RAMs are cleared)
+  wire reset_nes = (reset || !loader_done || aux_req || !clear_done);
   wire run_mem = (nes_ce == 0) && !reset_nes;
   wire run_nes = (nes_ce == 3) && !reset_nes;
 
@@ -85,7 +91,7 @@ reg aux_req = 1'b0;
     nes_ce <= nes_ce + 1;
 
   NES nes(clk, reset_nes, run_nes,
-          mapper_flags,
+          mapper_flags[31:0],
           sample, color,
           joypad_strobe, joypad_clock, {joypad_bits2[0], joypad_bits[0]},
           5'b11111, // sw
@@ -98,11 +104,16 @@ reg aux_req = 1'b0;
           dbgctr
    );
 
-  // the loader writes through the aux port of the memory controller: a byte held until the controller took it
+  // the loader writes through the aux port of the memory controller: a byte held until the controller took it.
+  // After the game is in, the PRG RAM (0x3C0000, 32 KB, but the trainer at 0x3C1000) and the mapper RAM
+  // (0x3FE000, 8 KB) are cleared to 0, as NES_MiSTer does: they live in the SRAM now, which starts with junk.
   reg [21:0] aux_addr = 22'd0;
   reg [7:0] aux_din = 8'd0;
   wire aux_ack;
   reg ramfail = 1'b0; // a loader byte came before the one before it was written (not seen at the speed of the mcu)
+  reg [15:0] clear_ctr = 16'd0; // 0-32767 PRG RAM, 32768-40959 mapper RAM
+  wire [21:0] clear_addr = clear_ctr[15] ? {9'b11_1111_111, clear_ctr[12:0]} : {7'b11_1100_0, clear_ctr[14:0]};
+  wire clear_skip = loader_trainer && clear_ctr[15:9] == 7'b0000_100; // 0x1000-0x11FF: the trainer
   always @(posedge clk) begin
     if (aux_ack)
       aux_req <= 1'b0;
@@ -111,10 +122,25 @@ reg aux_req = 1'b0;
       aux_addr <= loader_addr;
       aux_din <= loader_write_data;
     end
-    if (loader_reset)
+    if (loader_reset) begin
       ramfail <= 1'b0;
-    else if (loader_write && aux_req && !aux_ack)
-      ramfail <= 1'b1;
+      clear_ctr <= 16'd0;
+      clear_done <= 1'b0;
+    end
+    else begin
+      if (loader_write && aux_req && !aux_ack)
+        ramfail <= 1'b1;
+      if (loader_done && !clear_done && !aux_req && !loader_write) begin
+        if (!clear_skip) begin
+          aux_req <= 1'b1;
+          aux_addr <= clear_addr;
+          aux_din <= 8'h00;
+        end
+        clear_ctr <= clear_ctr + 1'd1;
+        if (clear_ctr == 16'd40959)
+          clear_done <= 1'b1;
+      end
+    end
   end
 
   MemoryController memory(

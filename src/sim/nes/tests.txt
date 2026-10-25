@@ -3,6 +3,9 @@
 # the tests without a result on this core (timeout) run 600 frames. Expected 0 = passed, n = failed #n.
 # A test that changes: update its line (and the frames, if it now takes longer).
 
+# synth (fetch_roms.sh): the loader
+synth/01-basics-trainer.nes 120 0 # a trainer in front of 01-basics (refused by the loader before 1.2)
+
 # instr_test-v5
 instr_test-v5/rom_singles/01-basics.nes 120 0
 instr_test-v5/rom_singles/02-implied.nes 200 0

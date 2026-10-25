@@ -1,7 +1,7 @@
 // sim_nes.cpp: runs a .nes file on nes_system (tb_nes.v, verilator).
 //
 // Usage: sim_nes <game.nes> [options]
-//   --frames N        stop after N frames (default 600)
+//   --frames N        stop after N frames (default 600; 0: load only)
 //   --blargg          stop when the blargg result protocol says done: $6001..$6003 = DE B0 61 and
 //                     $6000 < $80 (the result code; $80 = running, $81 = press reset after 100 ms)
 //   --ppm FILE        write the last frame as a PPM (256x240, the palette of rtl/vga/vga.vhd)
@@ -116,6 +116,9 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "%s: load %s (%zu bytes)\n", rom_name, top->loader_fail ? "error" : "not done", rom.size());
 		return 2;
 	}
+
+	// the loader result (check_loader.py compares it with the header and the file)
+	printf("loaded: crc %08x flags %016llx\n", top->rom_crc, (unsigned long long)top->mapper_flags);
 
 	static uint8_t fb[256 * 240];
 	memset(fb, 0, sizeof fb);
