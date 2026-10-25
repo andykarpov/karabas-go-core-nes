@@ -217,6 +217,14 @@ wire mcu_burst_ready;
 assign MCU_SPI_IO[0] = mcu_burst_ready;
 assign MCU_SPI_IO[1] = 1'bz;
 
+// the file mounter of the mcu, for the .sav files
+wire [7:0] img_mounted, img_data, img_result, img_flush;
+wire [63:0] img_size;
+wire img_data_wr, img_result_wr, img_q_wr, img_q_ack;
+wire [8:0] img_data_addr;
+wire [15:0] img_sum;
+wire [23:0] img_q_di;
+
 kg_mcu #(
 	.BURST_MAX_MHZ(0),
 	.CS_FILTER(3),
@@ -225,6 +233,7 @@ kg_mcu #(
 	.ENABLE_MATRIX(0),
 	.ENABLE_DEBUG(0),
 	.ENABLE_IMG(1),
+	.ENABLE_BK(1),      // kg_bk_ram: the .sav files of the games with a battery
 	.ENABLE_FILE(1),
 	.FILE_CMDS(1),     // FILEBANK / FILEDATA / FILELOADER: the game for GameLoader
 	.FILE_WR_EACH(0),  // a write when the address changes, as mcu.vhd did
@@ -287,6 +296,20 @@ kg_mcu #(
 	.DEBUG_ADDR(16'h00),
 	.DEBUG_DATA(debug_data),
 
+	// the file mounter: the .sav file of kg_bk_ram (nes_system)
+	.IMG_MOUNTED(img_mounted),
+	.IMG_SIZE(img_size),
+	.IMG_DATA_WR(img_data_wr),
+	.IMG_DATA_ADDR(img_data_addr),
+	.IMG_DATA(img_data),
+	.IMG_RESULT_WR(img_result_wr),
+	.IMG_RESULT(img_result),
+	.IMG_SUM(img_sum),
+	.IMG_FLUSH(img_flush),
+	.IMG_Q_WR(img_q_wr),
+	.IMG_Q_DI(img_q_di),
+	.IMG_Q_ACK(img_q_ack),
+
 	// not used by this core
 	.RTC_A(8'h00),
 	.RTC_DI(8'h00),
@@ -301,8 +324,6 @@ kg_mcu #(
 	.UART_DLL_WR(1'b0),
 	.MATRIX_CMD(24'h000000),
 	.MATRIX_CMD_WR(1'b0),
-	.IMG_Q_WR(1'b0),
-	.IMG_Q_DI(24'h000000),
 	.ESP_UART_RX_DATA(8'h00),
 	.ESP_UART_RX_WR(1'b0),
 	.FLASHBOOT_START(1'b0),
@@ -402,6 +423,21 @@ nes_system nes_system(
 	.loader_done(loader_done),
 	.loader_fail(loader_fail),
 	.debug_data(debug_data),
+	.img_mounted(img_mounted),
+	.img_size(img_size),
+	.img_data_wr(img_data_wr),
+	.img_data_addr(img_data_addr),
+	.img_data(img_data),
+	.img_result_wr(img_result_wr),
+	.img_result(img_result),
+	.img_sum(img_sum),
+	.img_flush(img_flush),
+	.img_q_wr(img_q_wr),
+	.img_q_di(img_q_di),
+	.img_q_ack(img_q_ack),
+	.bk_mounted(),
+	.bk_saving(),
+	.bk_error(),
 	.joy_l(nes_joy_l),
 	.joy_r(nes_joy_r),
 	.color(color),

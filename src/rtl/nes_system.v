@@ -8,9 +8,17 @@
  APU, mapper; clocked by every 4th clk, nes_ce), the memory controller (the 4 MB SRAM: PRG / CHR ROM,
  PRG RAM; CPU RAM and VRAM in block RAM; see memorycontroller.v) and the joypad shift registers. The
  simulation (src/sim/nes) runs the same module with a model of the SRAM.
+ The backup RAM of a game with a battery (its PRG RAM at 0x3C0000) is kept in a .sav file on the sd card
+ by kg_bk_ram on the file mounter of the mcu (img slot 0): loaded before the CPU starts, its written
+ sectors saved back.
 */
 
-module nes_system (
+module nes_system #(
+	parameter BK_IDLE_CLOCKS = 27'd21500000,  // ~1 s at 21.5 MHz: save after the last write
+	parameter BK_MAX_CLOCKS = 27'd86000000,   // ~4 s: at the latest after the first write
+	parameter BK_MOUNT_CLOCKS = 27'd21500000, // ~1 s: no answer to CMD_BK_MOUNT, go on without a save
+	parameter BK_GRACE_CLOCKS = 27'd215000    // ~10 ms: no file
+) (
 	input wire clk,
 	input wire reset,              // soft switch reset
 
@@ -23,6 +31,23 @@ module nes_system (
 	output wire [63:0] mapper_flags, // of the game (GameLoader, NES_MiSTer layout)
 	output wire [31:0] rom_crc,      // CRC-32 of its PRG and CHR ROM
 	output wire [15:0] debug_data,
+
+	// the file mounter of kg_mcu (ENABLE_IMG, ENABLE_BK): the .sav file in img slot 0
+	input wire [7:0] img_mounted,
+	input wire [63:0] img_size,
+	input wire img_data_wr,
+	input wire [8:0] img_data_addr,
+	input wire [7:0] img_data,
+	input wire img_result_wr,
+	input wire [7:0] img_result,
+	input wire [15:0] img_sum,
+	input wire [7:0] img_flush,
+	output wire img_q_wr,
+	output wire [23:0] img_q_di,
+	input wire img_q_ack,
+	output wire bk_mounted,        // the game has a .sav file
+	output wire bk_saving,         // a sector of it is being written
+	output wire bk_error,          // a write of it failed
 
 	// joypads: A, B, Select, Start, Up, Down, Left, Right in bits 0..7, 1 = pressed
 	input wire [7:0] joy_l,
@@ -81,8 +106,10 @@ reg clear_done = 1'b0;
 	 debug_data
 	);
 
-  // (the last byte of the loader may still wait for its slot when it says done; then the RAMs are cleared)
-  wire reset_nes = (reset || !loader_done || aux_req || !clear_done);
+  // (the last byte of the loader may still wait for its slot when it says done; then the RAMs are cleared,
+  // then the backup RAM is loaded)
+  wire bk_busy;
+  wire reset_nes = (reset || !loader_done || aux_req || !clear_done || bk_busy);
   wire run_mem = (nes_ce == 0) && !reset_nes;
   wire run_nes = (nes_ce == 3) && !reset_nes;
 
@@ -148,11 +175,42 @@ reg clear_done = 1'b0;
     end
   end
 
+  // --------------- Backup RAM
+  // the size: the PRG NVRAM of an NES 2.0 header (64 << n bytes, at least a sector, at most the 32 KB of
+  // the PRG RAM), else 8 KB with the battery bit
+  wire [3:0] nvram_shift = mapper_flags[34:31];
+  wire [6:0] nvram_sectors = nvram_shift <= 4'd9 ? 7'd1 : nvram_shift >= 4'd15 ? 7'd64 : 7'd1 << (nvram_shift - 4'd9);
+  wire [6:0] bk_size = !mapper_flags[25] ? 7'd0 : (mapper_flags[35] && nvram_shift != 0) ? nvram_sectors : 7'd16;
+  // kg_bk_ram has the aux port once the clear has written its last byte
+  wire bk_own = clear_done && !aux_req;
+  reg bk_own_d = 1'b0;
+  always @(posedge clk)
+    bk_own_d <= bk_own;
+  wire bk_start = bk_own && !bk_own_d;
+  wire bk_req, bk_we;
+  wire [14:0] bk_addr;
+  wire [7:0] bk_din, aux_dout;
+  // the CPU writes the PRG RAM (the mappers put it at 0x3C0000)
+  wire bk_wr = memory_write && run_mem && memory_addr[21:15] == 7'b11_1100_0;
+
+  kg_bk_ram #(.SLOT(3'd0), .IDLE_CLOCKS(BK_IDLE_CLOCKS), .MAX_CLOCKS(BK_MAX_CLOCKS), .MOUNT_CLOCKS(BK_MOUNT_CLOCKS),
+    .GRACE_CLOCKS(BK_GRACE_CLOCKS), .TIMEOUT(24'd4300000)) bk_ram(
+    .clk(clk), .reset(loader_reset),
+    .start(bk_start), .size(bk_size), .kind(8'h00), .busy(bk_busy), .mounted(bk_mounted), .saving(bk_saving),
+    .save_error(bk_error),
+    .wr(bk_wr), .wr_addr(memory_addr[14:0]),
+    .mem_req(bk_req), .mem_we(bk_we), .mem_addr(bk_addr), .mem_din(bk_din), .mem_ack(aux_ack), .mem_dout(aux_dout),
+    .img_mounted(img_mounted), .img_size(img_size), .img_data_wr(img_data_wr), .img_data_addr(img_data_addr),
+    .img_data(img_data), .img_result_wr(img_result_wr), .img_result(img_result), .img_sum(img_sum),
+    .img_flush(img_flush), .img_q_wr(img_q_wr), .img_q_di(img_q_di), .img_q_ack(img_q_ack));
+
   MemoryController memory(
     .clk(clk), .phase(nes_ce),
     .read_a(memory_read_cpu && run_mem), .read_b(memory_read_ppu && run_mem), .write(memory_write && run_mem),
     .addr(memory_addr), .din(memory_dout), .dout_a(memory_din_cpu), .dout_b(memory_din_ppu),
-    .aux_req(aux_req), .aux_we(1'b1), .aux_addr(aux_addr), .aux_din(aux_din), .aux_ack(aux_ack), .aux_dout(),
+    .aux_req(bk_own ? bk_req : aux_req), .aux_we(bk_own ? bk_we : 1'b1),
+    .aux_addr(bk_own ? {7'b11_1100_0, bk_addr} : aux_addr), .aux_din(bk_own ? bk_din : aux_din),
+    .aux_ack(aux_ack), .aux_dout(aux_dout),
     .MA(MA), .MD(MD), .MWR_N(MWR_N));
 
   always @(posedge clk) begin

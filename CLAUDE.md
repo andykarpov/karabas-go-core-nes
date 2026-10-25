@@ -33,8 +33,8 @@ The board modules (MCU link, memories, clocks, DACs) come from the git submodule
 
 ## Layout
 
-- `src/rtl/karabas_*_top.v`: board glue, clocks (`kg_pll`; `kg_dcm` for HDMI), MCU link (`kg_mcu`: file loader with the FILE* commands, FT812 and SD2 chip selects passed through, file mounter on for the saves of `docs/PLAN.md`), soft switches (`kg_soft_switches`: register 0 bit 0 = reset), audio (`kg_pcm5102` / `kg_sigma_delta_dac`), joypads.
-- `src/rtl/nes_system.v`: the NES part of the three tops (game loader, NES, memory controller, joypads), also the unit the simulation runs.
+- `src/rtl/karabas_*_top.v`: board glue, clocks (`kg_pll`; `kg_dcm` for HDMI), MCU link (`kg_mcu`: file loader with the FILE* commands, FT812 and SD2 chip selects passed through, file mounter and `ENABLE_BK` for the `.sav` saves), soft switches (`kg_soft_switches`: register 0 bit 0 = reset), audio (`kg_pcm5102` / `kg_sigma_delta_dac`), joypads.
+- `src/rtl/nes_system.v`: the NES part of the three tops (game loader, NES, memory controller, joypads, the battery save: `kg_bk_ram` of modules on the PRG RAM at `0x3C0000`, slot 0, its size from the NES 2.0 NVRAM or 8 KB; it owns the aux port of the memory controller after the clear and holds the NES in reset while it loads the save), also the unit the simulation runs.
 - `src/rtl/nes`: the NES, `GameLoader.v` (iNES 1.0 / NES 2.0, trainer, 64 bit flags of NES_MiSTer, CRC-32), `memorycontroller.v` (the 4 MB SRAM in the address space of NES_MiSTer, an NES slot and an aux slot per NES clock; CPU RAM and VRAM in `kg_spram`).
 - `src/rtl/mcu/hid_parser.vhd`: keyboard and joysticks to the NES joypads.
 - `src/rtl/osd`: the OSD of this core (`overlay.vhd`, two clocks: commands on clk, video on clk_vga; `kg_sdpram` for its font and text, `osd_font.hex` from `osd_font.coe` by `modules/tools/coe2hex.py`), `pix_dobler.vhd` (falling edge, not the `pix_doubler` of modules).

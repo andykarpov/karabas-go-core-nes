@@ -35,11 +35,17 @@ wire [15:0] md;
 wire [1:0] mwr_n;
 wire [15:0] debug_data;
 
-nes_system dut (
+// no mcu: the file mounter idle, its reply queue always free (a battery game gets no .sav: CMD_BK_MOUNT
+// gets no answer, kg_bk_ram goes on after BK_MOUNT_CLOCKS, short here)
+wire img_q_wr;
+nes_system #(.BK_MOUNT_CLOCKS(27'd64)) dut (
 	.clk(clk), .reset(reset),
 	.loader_reset(loader_reset), .loader_data(loader_data), .loader_wr(loader_wr),
 	.loader_done(loader_done), .loader_fail(loader_fail), .debug_data(debug_data),
 	.mapper_flags(mapper_flags), .rom_crc(rom_crc),
+	.img_mounted(8'd0), .img_size(64'd0), .img_data_wr(1'b0), .img_data_addr(9'd0), .img_data(8'd0),
+	.img_result_wr(1'b0), .img_result(8'd0), .img_sum(16'd0), .img_flush(8'd0),
+	.img_q_wr(img_q_wr), .img_q_di(), .img_q_ack(img_q_wr), .bk_mounted(), .bk_saving(), .bk_error(),
 	.joy_l(joy_l), .joy_r(joy_r),
 	.color(color), .cycle(cycle), .scanline(scanline), .sample(sample),
 	.MA(ma), .MD(md), .MWR_N(mwr_n)
