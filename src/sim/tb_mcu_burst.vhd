@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------
--- Testbench: mcu.vhd burst transfers and capability query (NES / Alf mcu)
+-- Testbench: kg_mcu (karabas-go-modules) burst transfers and capability query
 -- (karabas-go-firmware docs/burst_protocol.md)
 --
 -- Plays the RP2040 side: classic 3-byte frames on MCU_SS (16 MHz) and bursts
@@ -14,7 +14,7 @@ use IEEE.numeric_std.all;
 
 entity tb_mcu_burst is
 	generic (
-		CLK_PERIOD_PS     : integer := 46560; -- mcu clock (46560 = 21.477 MHz)
+		CLK_PERIOD_PS     : integer := 46486; -- mcu clock (46486 = 21.51 MHz)
 		BURST_SCK_HALF_PS : integer := 31250; -- burst SCK half period (31250 = 16 MHz, 15625 = 32 MHz)
 		MAX_MHZ           : integer := 0      -- BURST_MAX_MHZ of the DUT, expected in the CMD_CAPS answer
 	);
@@ -60,9 +60,22 @@ begin
 
 	clk <= not clk after CLK_PERIOD / 2 when not done;
 
-	DUT: entity work.mcu
+	-- kg_mcu with the parameters of the NES tops
+	DUT: entity work.kg_mcu
 	generic map (
-		BURST_MAX_MHZ => MAX_MHZ
+		BURST_MAX_MHZ => MAX_MHZ,
+		CS_FILTER => 3,
+		ENABLE_RTC => 0,
+		ENABLE_UART => 0,
+		ENABLE_MATRIX => 0,
+		ENABLE_DEBUG => 0,
+		ENABLE_IMG => 1,
+		ENABLE_FILE => 1,
+		FILE_CMDS => 1,
+		FILE_WR_EACH => 0,
+		FILE_TO_ROM => 0,
+		ENABLE_FT => 1,
+		ENABLE_SD2 => 1
 	)
 	port map (
 		CLK => clk,
@@ -81,7 +94,30 @@ begin
 		ROMLOAD_WR => rl_wr,
 		FILELOAD_ADDR => fl_addr,
 		FILELOAD_DATA => fl_data,
-		FILELOAD_WR => fl_wr
+		FILELOAD_WR => fl_wr,
+		RTC_A => x"00",
+		RTC_DI => x"00",
+		RTC_CS => '0',
+		RTC_WR_N => '1',
+		UART_TX_DATA => x"00",
+		UART_TX_WR => '0',
+		UART_TX_MODE => '0',
+		UART_DLM => x"00",
+		UART_DLL => x"00",
+		UART_DLM_WR => '0',
+		UART_DLL_WR => '0',
+		FT_MISO => '1',
+		SD2_MISO => '1',
+		MATRIX_CMD => x"000000",
+		MATRIX_CMD_WR => '0',
+		DEBUG_ADDR => x"0000",
+		DEBUG_DATA => x"0000",
+		IMG_Q_WR => '0',
+		IMG_Q_DI => x"000000",
+		ESP_UART_RX_DATA => x"00",
+		ESP_UART_RX_WR => '0',
+		FLASHBOOT_START => '0',
+		FLASHBOOT_COREID => "00000"
 	);
 
 	process (clk)

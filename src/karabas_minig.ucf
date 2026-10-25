@@ -224,8 +224,8 @@ NET "FLASH_HOLD_N"     LOC="P12"    | IOSTANDARD = LVCMOS33; # CONF_IO3
 
 # Timings
 
-NET "clk" TNM_NET = "clk";
-NET "clk_vga" TNM_NET = "clk_vga";
+NET "pll_clk<0>" TNM_NET = "clk"; # clk
+NET "pll_clk<1>" TNM_NET = "clk_vga"; # clk_vga
 NET "clk_hdmi" TNM_NET = "CLK_HDMI" | S;
 NET "clk_hdmi_n" TNM_NET = "CLK_HDMI_n" | S;
 

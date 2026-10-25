@@ -64,9 +64,9 @@ module MemoryController(
                            vram_ena ? vram_dout : 
                            ram_ena ? ram_dout : prgram_dout;
 
-  ram2k vram(clk, vram_ena, RamWR, addr[10:0], data_to_write, vram_dout); // VRAM in BRAM
-  ram2k ram(clk, ram_ena, RamWR, addr[10:0], data_to_write, ram_dout); // RAM in BRAM
-  ram8k prg_ram(clk, prgram_ena, RamWR, addr[12:0], data_to_write, prgram_dout); // Cart RAM in BRAM
+  kg_spram #(.AW(11)) vram(clk, vram_ena, RamWR, addr[10:0], data_to_write, vram_dout); // VRAM in BRAM
+  kg_spram #(.AW(11)) ram(clk, ram_ena, RamWR, addr[10:0], data_to_write, ram_dout); // RAM in BRAM
+  kg_spram #(.AW(13)) prg_ram(clk, prgram_ena, RamWR, addr[12:0], data_to_write, prgram_dout); // Cart RAM in BRAM
 
 
   assign chrrom_dout = MemDB;

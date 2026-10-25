@@ -161,19 +161,37 @@ wire clk_hdmi, clk_hdmi_n;
 wire locked, lockedx5;
 wire areset;
 
-nes_clk clock_21mhz(
- .CLK_IN1(CLK_50MHZ), 
- .CLK_OUT1(clk), // 21.x
- .CLK_OUT2(clk_vga), // 25.2
- .LOCKED(locked)
-);	
+// 50 MHz * 37 / 2 = 925 MHz VCO: clk 925 / 43 = 21.51 MHz, clk_vga 925 / 37 = 25.0 MHz
+wire [5:0] pll_clk;
+kg_pll #(
+ .CLKIN_PERIOD(20.0),
+ .DIVCLK_DIVIDE(2),
+ .CLKFBOUT_MULT(37),
+ .CLKOUT0_DIVIDE(43),
+ .CLKOUT1_DIVIDE(37),
+ .BUFG_MASK(6'b000011)
+) clock_21mhz(
+ .clk_in(CLK_50MHZ),
+ .rst(1'b0),
+ .clk_out(pll_clk),
+ .locked(locked)
+);
+assign clk = pll_clk[0]; // 21.x
+assign clk_vga = pll_clk[1]; // 25.0	
 assign areset = ~locked;
 
-pllx5 pllx5(
-	.CLK_IN1(clk_vga),
-	.CLK_OUT1(clk_hdmi),
-	.CLK_OUT2(clk_hdmi_n),
-	.LOCKED(lockedx5)
+// hdmi serial clock: 5 x clk_vga and its inverse
+kg_dcm #(
+	.CLKIN_PERIOD(40.0),
+	.CLKFX_MULTIPLY(5),
+	.CLKFX_DIVIDE(1)
+) pllx5(
+	.clk_in(clk_vga),
+	.rst(1'b0),
+	.clk_fx(clk_hdmi),
+	.clk_fx180(clk_hdmi_n),
+	.clk_0(),
+	.locked(lockedx5)
 );	
 	 
 //---------- MCU ------------
@@ -197,7 +215,21 @@ assign MCU_IO[1] = mcu_burst_ready;
 assign MCU_IO[0] = 1'bz;
 assign MCU_IO[4:2] = 3'bzzz;
 
-mcu mcu(
+kg_mcu #(
+	.BURST_MAX_MHZ(0),
+	.CS_FILTER(3),
+	.ENABLE_RTC(0),
+	.ENABLE_UART(0),
+	.ENABLE_MATRIX(0),
+	.ENABLE_DEBUG(0),
+	.ENABLE_IMG(1),
+	.ENABLE_FILE(1),
+	.FILE_CMDS(1),     // FILEBANK / FILEDATA / FILELOADER: the game for GameLoader
+	.FILE_WR_EACH(0),  // a write when the address changes, as mcu.vhd did
+	.FILE_TO_ROM(0),
+	.ENABLE_FT(1),
+	.ENABLE_SD2(1)
+) mcu(
 	.CLK(clk),
 	.N_RESET(~areset),
 	
@@ -253,7 +285,28 @@ mcu mcu(
 	.DVI_ONLY(dvi_only),
 	
 	.DEBUG_ADDR(16'h00),
-	.DEBUG_DATA(debug_data)
+	.DEBUG_DATA(debug_data),
+
+	// not used by this core
+	.RTC_A(8'h00),
+	.RTC_DI(8'h00),
+	.RTC_CS(1'b0),
+	.RTC_WR_N(1'b1),
+	.UART_TX_DATA(8'h00),
+	.UART_TX_WR(1'b0),
+	.UART_TX_MODE(1'b0),
+	.UART_DLM(8'h00),
+	.UART_DLL(8'h00),
+	.UART_DLM_WR(1'b0),
+	.UART_DLL_WR(1'b0),
+	.MATRIX_CMD(24'h000000),
+	.MATRIX_CMD_WR(1'b0),
+	.IMG_Q_WR(1'b0),
+	.IMG_Q_DI(24'h000000),
+	.ESP_UART_RX_DATA(8'h00),
+	.ESP_UART_RX_WR(1'b0),
+	.FLASHBOOT_START(1'b0),
+	.FLASHBOOT_COREID(5'd0)
 );
 
 //---------- HID Keyboard/Joy parser ------------
@@ -284,11 +337,15 @@ hid_parser hid_parser(
 wire kb_reset;
 wire btn_reset_n;
 
-soft_switches soft_switches(
-	.CLK(clk),
-	.SOFTSW_COMMAND(softsw_command),
-	.RESET(kb_reset)
+// register 0, bit 0: reset
+wire [7:0] softsw_regs;
+kg_soft_switches #(.N(1)) soft_switches(
+	.clk(clk),
+	.command(softsw_command),
+	.regs(softsw_regs),
+	.upd()
 );
+assign kb_reset = softsw_regs[0];
 
 assign btn_reset_n = ~kb_reset & ~mcu_busy;
 
@@ -297,18 +354,18 @@ assign btn_reset_n = ~kb_reset & ~mcu_busy;
 wire [15:0] audio_out_l, audio_out_r;
 wire [31:0] audio_mix_l, audio_mix_r;
 
-dac dac_l(
-	.I_CLK(clk),
-	.I_RESET(areset),
-	.I_DATA({2'b00, !audio_mix_l[15], audio_mix_l[14:4], 2'b00}),
-	.O_DAC(AUDIO_L)
+kg_sigma_delta_dac dac_l(
+	.clk(clk),
+	.reset(areset),
+	.din({2'b00, !audio_mix_l[15], audio_mix_l[14:4], 2'b00}),
+	.dout(AUDIO_L)
 );
 
-dac dac_r(
-	.I_CLK(clk),
-	.I_RESET(areset),
-	.I_DATA({2'b00, !audio_mix_r[15], audio_mix_r[14:4], 2'b00}),
-	.O_DAC(AUDIO_R)
+kg_sigma_delta_dac dac_r(
+	.clk(clk),
+	.reset(areset),
+	.din({2'b00, !audio_mix_r[15], audio_mix_r[14:4], 2'b00}),
+	.dout(AUDIO_R)
 );
 
 // ------- PCM1808 ADC ---------

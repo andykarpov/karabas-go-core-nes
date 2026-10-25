@@ -68,3 +68,8 @@ _xmsgs/
 
 # special scripts
 make_core.py
+
+# build inputs of the boards (src/Makefile)
+!src/karabas_*.prj
+!src/karabas_*.xst
+!src/karabas_*.ut

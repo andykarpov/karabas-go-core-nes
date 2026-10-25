@@ -35,7 +35,7 @@ architecture rtl of overlay is
     signal addr_write: std_logic_vector(9 downto 0);
     signal vram_di: std_logic_vector(15 downto 0);
     signal vram_do: std_logic_vector(15 downto 0);
-    signal vram_wr: std_logic_vector(0 downto 0) := "0";
+    signal vram_wr: std_logic := '0';
 
     signal flash : std_logic;
     signal is_flash : std_logic;
@@ -53,7 +53,7 @@ architecture rtl of overlay is
 	 
 	 signal osdfont_addr : std_logic_vector(10 downto 0) := (others => '1');
 	 signal osdfont_data : std_logic_vector(7 downto 0);
-	 signal osdfont_we : std_logic_vector(0 downto 0) := "0";
+	 signal osdfont_we : std_logic := '0';
 	 signal osdfont_upd, osdfont_prev_upd : std_logic := '0';
 	 	 
 	 constant paper_chars_h : natural := 32; -- count of characters in row
@@ -119,29 +119,40 @@ begin
 			  "00" & vcnt_i(10 downto 2) - v_offset;
 
 	 -- 8x8 font RAM
-	 U_FONT: entity work.rom_font
+	 U_FONT: entity work.kg_sdpram
+	 generic map(
+		DW 		=> 8,
+		AW 		=> 11,
+		INIT_FILE	=> "rtl/osd/osd_font.hex"
+	 )
     port map (
-        addra  => osdfont_addr,
-		  dina   => osdfont_data,
-		  wea    => osdfont_we,
-		  clka   => CLK,
-		  
-        addrb  => rom_addr,
-        clkb   => CLK_VGA,
-        doutb  => font_word
+		clka		=> CLK,
+		wea		=> osdfont_we,
+		addra		=> osdfont_addr,
+		dina		=> osdfont_data,
+
+		clkb		=> CLK_VGA,
+		enb		=> '1',
+		addrb 	=> rom_addr,
+		doutb 	=> font_word
     );
 
 	 -- OSD VRAM
-    U_VRAM: entity work.osd_vram 
+    U_VRAM: entity work.kg_sdpram
+	 generic map(
+		DW 		=> 16,
+		AW 		=> 10
+	 )
     port map (
-        dina   => vram_di,
-        addra  => addr_write,
-        clka   => CLK,
-        wea    => vram_wr,
+		clka		=> CLK,
+		wea		=> vram_wr,
+		addra		=> addr_write,
+		dina		=> vram_di,
 
-        addrb  => addr_read,
-        clkb   => CLK_VGA,
-        doutb  => vram_do
+		clkb		=> CLK_VGA,
+		enb		=> '1',
+		addrb 	=> addr_read,
+		doutb 	=> vram_do
     );
 
 	 flash <= flash_cnt(5);
@@ -244,16 +255,16 @@ begin
 	process(CLK, osd_command, last_osd_command)
 	begin
 		  if rising_edge(CLK) then
-				 vram_wr <= "0";
+				 vram_wr <= '0';
 				 if (osd_command /= last_osd_command) then 
 					last_osd_command <= osd_command;
 					case osd_command(15 downto 8) is 
-					  when x"01" => vram_wr <= "0"; osd_overlay <= osd_command(0); -- osd
-					  when x"02" => vram_wr <= "0"; osd_popup <= osd_command(0); -- popup						
-					  when X"10"  => vram_wr <= "0"; addr_write(4 downto 0) <= osd_command(4 downto 0); -- x: 0...32
-					  when X"11" => vram_wr <= "0"; addr_write(9 downto 5) <= osd_command(4 downto 0); -- y: 0...32
-					  when X"12"  => vram_wr <= "0"; char_buf <= osd_command(7 downto 0); -- char
-					  when X"13"  => vram_wr <= "1"; vram_di <= char_buf & osd_command(7 downto 0); -- attrs
+					  when x"01" => vram_wr <= '0'; osd_overlay <= osd_command(0); -- osd
+					  when x"02" => vram_wr <= '0'; osd_popup <= osd_command(0); -- popup						
+					  when X"10"  => vram_wr <= '0'; addr_write(4 downto 0) <= osd_command(4 downto 0); -- x: 0...32
+					  when X"11" => vram_wr <= '0'; addr_write(9 downto 5) <= osd_command(4 downto 0); -- y: 0...32
+					  when X"12"  => vram_wr <= '0'; char_buf <= osd_command(7 downto 0); -- char
+					  when X"13"  => vram_wr <= '1'; vram_di <= char_buf & osd_command(7 downto 0); -- attrs
 					  when x"20" => 
 								-- reset font address
 								if (OSD_COMMAND(0) = '1') then 
@@ -266,15 +277,15 @@ begin
 								osdfont_addr <= osdfont_addr + 1;
 								osdfont_data <= OSD_COMMAND(7 downto 0);
 								osdfont_upd <= not osdfont_upd;
-					  when others => vram_wr <= "0";
+					  when others => vram_wr <= '0';
 					end case;
 				 end if;
 				 
 				-- wr signal / osd font loader
-				osdfont_we <= "0";
+				osdfont_we <= '0';
 				if (osdfont_prev_upd /= osdfont_upd) then 
 					osdfont_prev_upd <= osdfont_upd;
-					osdfont_we <= "1";
+					osdfont_we <= '1';
 				end if;				 
 				 
 		  end if;
