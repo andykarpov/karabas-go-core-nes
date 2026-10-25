@@ -85,8 +85,9 @@ reg [1:0] nes_ce;
 wire [21:0] loader_addr;
 wire [7:0] loader_write_data;
 wire loader_write;
-// mapper_flags: the layout of NES_MiSTer; the mappers here use bits 16:0
+// mapper_flags: the layout of NES_MiSTer (MultiMapper uses bits 16:0, the mappers of rtl/cart all)
 wire loader_trainer;
+wire [9:0] prg_mask, chr_mask;     // for the mappers of NES_MiSTer
 reg aux_req = 1'b0;
 reg clear_done = 1'b0;
 
@@ -103,6 +104,8 @@ reg clear_done = 1'b0;
 	 loader_fail,
 	 loader_trainer,
 	 rom_crc,
+	 prg_mask,
+	 chr_mask,
 	 debug_data
 	);
 
@@ -118,7 +121,7 @@ reg clear_done = 1'b0;
     nes_ce <= nes_ce + 1;
 
   NES nes(clk, reset_nes, run_nes,
-          mapper_flags[31:0],
+          mapper_flags, prg_mask, chr_mask,
           sample, color,
           joypad_strobe, joypad_clock, {joypad_bits2[0], joypad_bits[0]},
           5'b11111, // sw

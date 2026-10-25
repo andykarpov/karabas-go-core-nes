@@ -28,8 +28,8 @@ ZX/sd1_go/NES/Jurassic Park.nes | 720 | hash:f13ddeb4 | joy=360:08,370:00,540:08
 # mapper 7 (AxROM)
 Telegram Desktop/Battletoads.nes | 720 | hash:ff098662 | joy=360:08,370:00,540:08,550:00 # intro text
 Telegram Desktop/Battletoads & DD.nes | 720 | hash:a6dd0264 | joy=360:08,370:00,540:08,550:00 # title
-# mapper 24 (VRC6), not in this core
-ZX/sd1_go/NES/Super_Mario_Bros._Two_Playe.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: mapper 24 missing
+# mapper 24 (VRC6, NES_MiSTer cart_top)
+ZX/sd1_go/NES/Super_Mario_Bros._Two_Playe.nes | 720 | hash:f5590d49 | joy=360:08,370:00,540:08,550:00 # game, 1-1
 # mapper 30 (UNROM 512), not in this core
 ZX/sd1_go/NES/Black Box Challenge.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: mapper 30 missing
 # mapper 34 (BNROM)

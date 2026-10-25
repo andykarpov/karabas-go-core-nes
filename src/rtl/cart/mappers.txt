@@ -1,0 +1,9 @@
+# The instances of cart_top (NES_MiSTer cart.sv) in rtl/cart/cart.v: tools/upstream/gen_cart.py.
+# The mappers of the other numbers come from MultiMapper of rtl/nes/mmu.v meanwhile (docs/PLAN.md, F3).
+
+# Konami VRC
+vrc1        # 75
+vrc3        # 73
+vrc24       # 21, 22, 23, 25, 27
+vrc6        # 24, 26
+snd_vrc6    # VRC6 sound

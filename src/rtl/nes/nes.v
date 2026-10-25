@@ -121,8 +121,10 @@ endmodule
 
 
 module NES(input clk, input reset, input ce,
-           input [31:0] mapper_flags,
-           output [15:0] sample, // sample generated from APU
+           input [63:0] mapper_flags,   // the layout of NES_MiSTer (GameLoader.v)
+           input [9:0] prg_mask,        // for the mappers of NES_MiSTer
+           input [9:0] chr_mask,
+           output [15:0] sample, // sample generated from APU (and the cart)
            output [5:0] color,  // pixel generated from PPU
            output joypad_strobe,// Set to 1 to strobe joypads. Then set to zero to keep the value.
            output [1:0] joypad_clock, // Set to 1 for each joypad to clock it.
@@ -214,11 +216,12 @@ module NES(input clk, input reset, input ce,
   wire apu_cs = addr >= 'h4000 && addr < 'h4018;
   wire [7:0] apu_dout;
   wire apu_irq;
+  wire [15:0] sample_apu;
   APU apu(clk, apu_ce, reset,
           addr[4:0], dbus, apu_dout, 
           mw_int && apu_cs, mr_int && apu_cs,
           audio_channels,
-          sample,
+          sample_apu,
           apu_dma_request,
           apu_dma_ack,
           apu_dma_addr,
@@ -262,9 +265,55 @@ module NES(input clk, input reset, input ce,
   wire cart_ce = (cpu_cycle_counter == 0) && ce;
   wire mapper_irq;
   wire has_chr_from_ppu_mapper;
-  MultiMapper multi_mapper(clk, cart_ce, ce, reset, mapper_ppu_flags, mapper_flags, 
-                           prg_addr, prg_linaddr, prg_read, prg_write, prg_din, prg_dout_mapper, from_data_bus, prg_allow,
-                           chr_read, chr_addr, chr_linaddr, chr_from_ppu_mapper, has_chr_from_ppu_mapper, chr_allow, vram_a10, vram_ce, mapper_irq);
+
+  // The mappers of NES_MiSTer (rtl/cart/cart.v, those of rtl/cart/mappers.txt); MultiMapper (mmu.v) has the
+  // other numbers meanwhile. cart_top as in the nes.v of NES_MiSTer: ce on the first PPU cycle of a CPU
+  // cycle, cpu_ce the CPU clock (M2 inverted for some mappers); no Vs. System, no extra sprites (chr_ex),
+  // no EEPROM (F4), the save state bus tied off (F6).
+  wire cart_hit;
+  wire [24:0] cart_prg_aout;
+  wire [21:0] cart_chr_aout;
+  wire [7:0] cart_prg_dout, cart_chr_dout;
+  wire [15:0] cart_audio;
+  wire cart_prg_allow, cart_chr_allow, cart_vram_a10, cart_vram_ce, cart_irq, cart_has_chr_dout;
+  cart_top cart(
+    .cart_hit(cart_hit),
+    .clk(clk), .ce(cart_ce && !reset), .cpu_ce(apu_ce), .paused(1'b0), .reset(reset), .vs_mode(1'b0),
+    .flags(mapper_flags),
+    .prg_ain(prg_addr), .prg_aout(cart_prg_aout), .prg_read(prg_read), .prg_write(prg_write),
+    .prg_din(prg_din), .prg_dout(cart_prg_dout), .prg_from_ram(from_data_bus), .prg_allow(cart_prg_allow),
+    .prg_bus_write(), .prg_conflict(), .has_savestate(), .prg_conflict_d0(), .has_flashsaves(),
+    .prg_mask(prg_mask), .chr_mask(chr_mask),
+    .chr_ex(1'b0), .chr_read(chr_read), .chr_write(chr_write), .chr_din(chr_from_ppu),
+    .chr_ain_orig(chr_addr), .chr_ain_ex(14'd0), .chr_aout(cart_chr_aout), .chr_dout(cart_chr_dout),
+    .has_chr_dout(cart_has_chr_dout), .chr_allow(cart_chr_allow), .vram_a10(cart_vram_a10), .vram_ce(cart_vram_ce),
+    .mapper_addr(), .mapper_data_in(8'd0), .mapper_data_out(), .mapper_prg_write(), .mapper_ovr(),
+    .irq(cart_irq), .audio_in(16'hFFFF - sample_apu), .audio(cart_audio),
+    .diskside(), .fds_busy(1'b0), .fds_eject(1'b0), .fds_auto_eject(1'b0), .max_diskside(2'd0), .fds_fast(1'b0),
+    .SaveStateBus_Din(64'd0), .SaveStateBus_Adr(10'd0), .SaveStateBus_wren(1'b0), .SaveStateBus_rst(1'b0),
+    .SaveStateBus_load(1'b0), .SaveStateBus_Dout(),
+    .Savestate_MAPRAMactive(1'b0), .Savestate_MAPRAMAddr(13'd0), .Savestate_MAPRAMRdEn(1'b0),
+    .Savestate_MAPRAMWrEn(1'b0), .Savestate_MAPRAMWriteData(8'd0), .Savestate_MAPRAMReadData()
+  );
+
+  wire mm_prg_allow, mm_vram_a10, mm_vram_ce, mm_chr_allow, mm_irq, mm_has_chr_dout;
+  wire [21:0] mm_prg_aout, mm_chr_aout;
+  wire [7:0] mm_prg_dout, mm_chr_dout;
+  MultiMapper multi_mapper(clk, cart_ce, ce, reset, mapper_ppu_flags, mapper_flags[31:0],
+                           prg_addr, mm_prg_aout, prg_read, prg_write, prg_din, mm_prg_dout, from_data_bus, mm_prg_allow,
+                           chr_read, chr_addr, mm_chr_aout, mm_chr_dout, mm_has_chr_dout, mm_chr_allow, mm_vram_a10, mm_vram_ce, mm_irq);
+
+  // the VRAM of NES_MiSTer is at 0x3A0000, here at 0x300000 (memorycontroller.v)
+  wire [21:0] cart_chr_vaddr = cart_vram_ce ? {11'b11_0000_0000_0, cart_vram_a10, chr_addr[9:0]} : cart_chr_aout;
+
+  // the sound of the cart (MiSTer: half of the inverted APU, plus the sound of the mapper)
+  assign sample = cart_hit ? cart_audio : sample_apu;
+  assign {prg_linaddr, prg_allow, prg_dout_mapper, chr_linaddr, chr_from_ppu_mapper, has_chr_from_ppu_mapper,
+          chr_allow, vram_a10, vram_ce, mapper_irq} = cart_hit ?
+         {cart_prg_aout[21:0], cart_prg_allow, cart_prg_dout, cart_chr_vaddr, cart_chr_dout, cart_has_chr_dout,
+          cart_chr_allow, cart_vram_a10, cart_vram_ce, cart_irq} :
+         {mm_prg_aout, mm_prg_allow, mm_prg_dout, mm_chr_aout, mm_chr_dout, mm_has_chr_dout,
+          mm_chr_allow, mm_vram_a10, mm_vram_ce, mm_irq};
   assign chr_to_ppu = has_chr_from_ppu_mapper ? chr_from_ppu_mapper : memory_din_ppu;
                              
   // Mapper IRQ seems to be delayed by one PPU clock.   
