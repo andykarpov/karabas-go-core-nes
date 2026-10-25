@@ -1,0 +1,54 @@
+# Games by mapper (the ROMs are not in git: NES_GAMES, default ~/Downloads on the machine they were taken on).
+# <rom> | <frames> | hash:<frame hash> | joy=<frame:buttons,...>; buttons: A 01 B 02 Select 04 Start 08 Up 10
+# Down 20 Left 40 Right 80. Start is pressed at frames 360 and 540, the hash is of frame 720 (the PPM in
+# ../build/nes/results shows it). The comment says what the frame shows with this core.
+
+# mapper 0 (NROM)
+ZX/4gb/NES/Super_Mario_Bros.nes | 720 | hash:2b9cf686 | joy=360:08,370:00,540:08,550:00 # game, 1-1
+ZX/sd1_go/NES/Bomberman.nes | 720 | hash:4ac3d5dd | joy=360:08,370:00,540:08,550:00 # game
+ZX/sd1_go/NES/Micro_Mages_final_2019.nes | 720 | hash:2f60b7b3 | joy=360:08,370:00,540:08,550:00 # title
+# mapper 1 (MMC1)
+ZX/sd1_go/NES/Tetris.nes | 720 | hash:ee575662 | joy=360:08,370:00,540:08,550:00 # game type menu
+ZX/sd1_go/NES/Tetris.nes | 720 | hash:ee575662 | joy=360:08,370:00,540:08,550:00 | before=ZX/sd1_go/NES/Contra.nes:200 # MMC1 banks after a reset (were left by the game before)
+ZX/sd1_go/NES/Chip n Dale RR.nes | 720 | hash:109069af | joy=360:08,370:00,540:08,550:00 # intro dialog
+ZX/sd1_go/NES/Zelda II - The Nightmare of.nes | 720 | hash:28916a71 | joy=360:08,370:00,540:08,550:00 # register your name
+ZX/sd1_go/NES/Ultima_-_Exodus_Remastered_.nes | 720 | hash:2ac04d8b | joy=360:08,370:00,540:08,550:00 # register / erase menu
+# mapper 2 (UxROM)
+ZX/sd1_go/NES/Contra.nes | 720 | hash:b55d5d0c | joy=360:08,370:00,540:08,550:00 # stage 1 screen (Russian hack)
+ZX/sd1_go/NES/Duck Tales.nes | 720 | hash:d7473383 | joy=360:08,370:00,540:08,550:00 # land select
+ZX/4gb/1943.NES | 720 | hash:f7e6e789 | joy=360:08,370:00,540:08,550:00 # title
+# mapper 3 (CNROM)
+ZX/4gb/NES/Gradius.nes | 720 | hash:1995588e | joy=360:08,370:00,540:08,550:00 # game
+ZX/sd1_go/NES/Arkanoid Revised.nes | 720 | hash:e8d73d82 | joy=360:08,370:00,540:08,550:00 # round 1
+# mapper 4 (MMC3)
+ZX/4gb/NES/Super_Mario_Bros_III.nes | 720 | hash:4ee05102 | joy=360:08,370:00,540:08,550:00 # world map
+ZX/sd1_go/NES/Batman.nes | 720 | hash:47816455 | joy=360:08,370:00,540:08,550:00 # intro
+ZX/sd1_go/NES/Mighty Final Fight.nes | 720 | hash:ce923a70 | joy=360:08,370:00,540:08,550:00 # intro text
+ZX/sd1_go/NES/Jurassic Park.nes | 720 | hash:f13ddeb4 | joy=360:08,370:00,540:08,550:00 # title
+# mapper 7 (AxROM)
+Telegram Desktop/Battletoads.nes | 720 | hash:ff098662 | joy=360:08,370:00,540:08,550:00 # intro text
+Telegram Desktop/Battletoads & DD.nes | 720 | hash:a6dd0264 | joy=360:08,370:00,540:08,550:00 # title
+# mapper 24 (VRC6), not in this core
+ZX/sd1_go/NES/Super_Mario_Bros._Two_Playe.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: mapper 24 missing
+# mapper 30 (UNROM 512), not in this core
+ZX/sd1_go/NES/Black Box Challenge.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: mapper 30 missing
+# mapper 34 (BNROM)
+ZX/sd1_go/NES/Lizard_PD_2018.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: 512K PRG, the core has 256K (F1)
+# mapper 66 (GxROM)
+ZX/sd1_go/NES/Ghostbusters_Remastered_-_T.nes | 720 | hash:94eb77f0 | joy=360:08,370:00,540:08,550:00 # city map
+# mapper 69 (FME-7)
+ZX/sd1_go/NES/Gimmick_2.nes | 720 | hash:4398190c | joy=360:08,370:00,540:08,550:00 # intro
+# mapper 71 (Camerica)
+ZX/sd1_go/NES/Micro Machines.nes | 720 | hash:5f7f4880 | joy=360:08,370:00,540:08,550:00 # game select
+# mapper 85 (VRC7), not in this core
+ZX/sd1_go/NES/Rohrleitung Gate.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: mapper 85 missing
+# mapper 107 (Magic Dragon), not in this core
+ZX/sd1_go/NES/R-Type_hack_2019.nes | 720 | hash:e25b74a8 | joy=360:08,370:00,540:08,550:00 # game
+# mapper 113 (NINA-03/06)
+ZX/sd1_go/NES/Cheril_the_Writer_PD_FullRe.nes | 720 | hash:375cddfe | joy=360:08,370:00,540:08,550:00 # level 01
+# mapper 118 (TxSROM)
+ZX/sd1_go/NES/Rick and Morty.nes | 720 | hash:5b3b650d | joy=360:08,370:00,540:08,550:00 # character select
+# mapper 210 (Namco 175/340), not in this core
+ZX/sd1_go/NES/MK2.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: mapper 210 missing
+# mapper 241, not in this core
+ZX/sd1_go/NES/Allied_Death_Squad_Ch_EngPa.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: mapper 241 missing

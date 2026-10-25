@@ -31,7 +31,7 @@ architecture rtl of vga is
 	signal pixel_out	: std_logic_vector(5 downto 0);
 	signal addr_rd		: std_logic_vector(15 downto 0);
 	signal addr_wr		: std_logic_vector(15 downto 0);
-	signal wren		: std_logic_vector(0 downto 0);
+	signal wren		: std_logic;
 	signal picture		: std_logic;
 	signal window_hcnt	: std_logic_vector(8 downto 0) := "000000000";
 	signal hcnt		: std_logic_vector(9 downto 0) := "0000000000";
@@ -55,7 +55,11 @@ architecture rtl of vga is
 	
 begin
 	
-	altsram: entity work.framebuffer
+	altsram: entity work.kg_sdpram
+	generic map(
+		DW => 6,
+		AW => 16
+	)
 	port map(
 		clka => I_CLK,
 		wea => wren,
@@ -63,6 +67,7 @@ begin
 		dina => I_COLOR,
 		
 		clkb => I_CLK_VGA,
+		enb => '1',
 		addrb => addr_rd,
 		doutb => pixel_out
 	);
@@ -168,7 +173,7 @@ begin
 		end if;
 	end process;
 	
-	wren	<= "1" when (I_HCNT < 256) and (I_VCNT < 240) else "0";
+	wren	<= '1' when (I_HCNT < 256) and (I_VCNT < 240) else '0';
 	addr_wr	<= I_VCNT(7 downto 0) & I_HCNT(7 downto 0);
 	addr_rd	<= vcnt(8 downto 1) & window_hcnt(8 downto 1);
 	blank	<= '1' when (hcnt > h_pixels_across) or (vcnt > v_pixels_down) else '0';

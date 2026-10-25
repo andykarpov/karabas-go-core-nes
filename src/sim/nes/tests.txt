@@ -1,0 +1,208 @@
+# Test ROMs of nes-test-roms (fetch_roms.sh) with the result of this core: <rom> <max frames> <expected>.
+# max frames: about 1.5 x the frames the result took here, at least 120 (sim_nes runs 5-7 frames/s per process);
+# the tests without a result on this core (timeout) run 600 frames. Expected 0 = passed, n = failed #n.
+# A test that changes: update its line (and the frames, if it now takes longer).
+
+# synth (fetch_roms.sh): the loader
+synth/01-basics-trainer.nes 120 0 # a trainer in front of 01-basics (refused by the loader before 1.2)
+
+# instr_test-v5
+instr_test-v5/rom_singles/01-basics.nes 120 0
+instr_test-v5/rom_singles/02-implied.nes 200 0
+instr_test-v5/rom_singles/03-immediate.nes 190 1
+instr_test-v5/rom_singles/04-zero_page.nes 230 0
+instr_test-v5/rom_singles/05-zp_xy.nes 450 0
+instr_test-v5/rom_singles/06-absolute.nes 220 0
+instr_test-v5/rom_singles/07-abs_xy.nes 610 1
+instr_test-v5/rom_singles/08-ind_x.nes 280 0
+instr_test-v5/rom_singles/09-ind_y.nes 260 0
+instr_test-v5/rom_singles/10-branches.nes 120 0
+instr_test-v5/rom_singles/11-stack.nes 300 0
+instr_test-v5/rom_singles/12-jmp_jsr.nes 120 0
+instr_test-v5/rom_singles/13-rts.nes 120 0
+instr_test-v5/rom_singles/14-rti.nes 120 0
+instr_test-v5/rom_singles/15-brk.nes 120 0
+instr_test-v5/rom_singles/16-special.nes 120 0
+
+# instr_misc
+instr_misc/rom_singles/01-abs_x_wrap.nes 120 0
+instr_misc/rom_singles/02-branch_wrap.nes 120 0
+instr_misc/rom_singles/03-dummy_reads.nes 140 0
+instr_misc/rom_singles/04-dummy_reads_apu.nes 270 0
+
+# instr_timing
+instr_timing/rom_singles/1-instr_timing.nes 1580 0
+instr_timing/rom_singles/2-branch_timing.nes 270 0
+
+# cpu_dummy_reads
+cpu_dummy_reads/cpu_dummy_reads.nes 600 timeout
+
+# cpu_dummy_writes
+cpu_dummy_writes/cpu_dummy_writes_oam.nes 560 0
+cpu_dummy_writes/cpu_dummy_writes_ppumem.nes 400 9
+
+# cpu_exec_space
+cpu_exec_space/test_cpu_exec_space_apu.nes 150 2
+cpu_exec_space/test_cpu_exec_space_ppuio.nes 120 3
+
+# cpu_interrupts_v2
+cpu_interrupts_v2/rom_singles/1-cli_latency.nes 120 0
+cpu_interrupts_v2/rom_singles/2-nmi_and_brk.nes 230 0
+cpu_interrupts_v2/rom_singles/3-nmi_and_irq.nes 240 0
+cpu_interrupts_v2/rom_singles/4-irq_and_dma.nes 160 1
+cpu_interrupts_v2/rom_singles/5-branch_delays_irq.nes 630 0
+
+# cpu_reset
+cpu_reset/ram_after_reset.nes 600 timeout
+cpu_reset/registers.nes 290 3
+
+# ppu_vbl_nmi
+ppu_vbl_nmi/rom_singles/01-vbl_basics.nes 270 0
+ppu_vbl_nmi/rom_singles/02-vbl_set_time.nes 330 0
+ppu_vbl_nmi/rom_singles/03-vbl_clear_time.nes 310 0
+ppu_vbl_nmi/rom_singles/04-nmi_control.nes 120 0
+ppu_vbl_nmi/rom_singles/05-nmi_timing.nes 380 0
+ppu_vbl_nmi/rom_singles/06-suppression.nes 390 0
+ppu_vbl_nmi/rom_singles/07-nmi_on_timing.nes 350 0
+ppu_vbl_nmi/rom_singles/08-nmi_off_timing.nes 390 0
+ppu_vbl_nmi/rom_singles/09-even_odd_frames.nes 170 0
+ppu_vbl_nmi/rom_singles/10-even_odd_timing.nes 170 3
+
+# ppu_open_bus
+ppu_open_bus/ppu_open_bus.nes 120 2
+
+# ppu_read_buffer
+ppu_read_buffer/test_ppu_read_buffer.nes 1950 17
+
+# oam_read
+oam_read/oam_read.nes 120 0
+
+# oam_stress
+oam_stress/oam_stress.nes 600 timeout
+
+# apu_test
+apu_test/rom_singles/1-len_ctr.nes 120 0
+apu_test/rom_singles/2-len_table.nes 120 0
+apu_test/rom_singles/3-irq_flag.nes 120 0
+apu_test/rom_singles/4-jitter.nes 120 0
+apu_test/rom_singles/5-len_timing.nes 230 0
+apu_test/rom_singles/6-irq_flag_timing.nes 120 0
+apu_test/rom_singles/7-dmc_basics.nes 120 0
+apu_test/rom_singles/8-dmc_rates.nes 120 0
+
+# apu_reset
+apu_reset/4015_cleared.nes 120 0
+apu_reset/4017_timing.nes 120 0
+apu_reset/4017_written.nes 130 3
+apu_reset/irq_flag_cleared.nes 120 0
+apu_reset/len_ctrs_enabled.nes 120 3
+apu_reset/works_immediately.nes 120 0
+
+# mmc3_test_2
+mmc3_test_2/rom_singles/1-clocking.nes 120 0
+mmc3_test_2/rom_singles/2-details.nes 120 0
+mmc3_test_2/rom_singles/3-A12_clocking.nes 120 0
+mmc3_test_2/rom_singles/4-scanline_timing.nes 530 0
+mmc3_test_2/rom_singles/5-MMC3.nes 120 0
+mmc3_test_2/rom_singles/6-MMC3_alt.nes 120 2
+
+# sprdma_and_dmc_dma
+sprdma_and_dmc_dma/sprdma_and_dmc_dma_512.nes 270 0
+sprdma_and_dmc_dma/sprdma_and_dmc_dma.nes 270 0
+
+# dmc_dma_during_read4
+dmc_dma_during_read4/dma_2007_read.nes 600 timeout
+dmc_dma_during_read4/dma_2007_write.nes 600 timeout
+dmc_dma_during_read4/dma_4016_read.nes 600 timeout
+dmc_dma_during_read4/double_2007_read.nes 600 timeout
+dmc_dma_during_read4/read_write_2007.nes 600 timeout
+
+# Screen-only tests: the hash of frame 300 (what the screen shows in the comment; the blargg 2005 tests
+# show $01 for passed).
+# blargg_ppu_tests_2005.09.15b
+blargg_ppu_tests_2005.09.15b/palette_ram.nes 300 hash:25b74906 # $01 (passed)
+blargg_ppu_tests_2005.09.15b/power_up_palette.nes 300 hash:3db139af # $02: failed (power-up palette)
+blargg_ppu_tests_2005.09.15b/sprite_ram.nes 300 hash:25b74906 # $01 (passed)
+blargg_ppu_tests_2005.09.15b/vbl_clear_time.nes 300 hash:25b74906 # $01 (passed)
+blargg_ppu_tests_2005.09.15b/vram_access.nes 300 hash:25b74906 # $01 (passed)
+# branch_timing_tests
+branch_timing_tests/1.Branch_Basics.nes 300 hash:a4bef9c9 # passed
+branch_timing_tests/2.Backward_Branch.nes 300 hash:6ff6567b # passed
+branch_timing_tests/3.Forward_Branch.nes 300 hash:f50f219a # passed
+# mmc3_irq_tests
+mmc3_irq_tests/1.Clocking.nes 300 hash:58850544 # passed
+mmc3_irq_tests/2.Details.nes 300 hash:83631d34 # passed
+mmc3_irq_tests/3.A12_clocking.nes 300 hash:8f971fa1 # passed
+mmc3_irq_tests/4.Scanline_timing.nes 300 hash:9576c0de # passed
+mmc3_irq_tests/5.MMC3_rev_A.nes 300 hash:ff9a2dbf # FAILED #3: rev A, the core has the rev B counter (6 passes)
+mmc3_irq_tests/6.MMC3_rev_B.nes 300 hash:6684dafc # passed
+# sprite_hit_tests_2005.10.05
+sprite_hit_tests_2005.10.05/01.basics.nes 300 hash:3b597e8a # passed
+sprite_hit_tests_2005.10.05/02.alignment.nes 300 hash:0f42423b # passed
+sprite_hit_tests_2005.10.05/03.corners.nes 300 hash:2a31eb79 # passed
+sprite_hit_tests_2005.10.05/04.flip.nes 300 hash:a477ff69 # passed
+sprite_hit_tests_2005.10.05/05.left_clip.nes 300 hash:546a7479 # passed
+sprite_hit_tests_2005.10.05/06.right_edge.nes 300 hash:6bb78695 # passed
+sprite_hit_tests_2005.10.05/07.screen_bottom.nes 300 hash:62fa078c # passed
+sprite_hit_tests_2005.10.05/08.double_height.nes 300 hash:90d245e3 # passed
+sprite_hit_tests_2005.10.05/09.timing_basics.nes 300 hash:028c9a1c # passed
+sprite_hit_tests_2005.10.05/10.timing_order.nes 300 hash:87a10e5e # passed
+sprite_hit_tests_2005.10.05/11.edge_timing.nes 300 hash:21626846 # passed
+# sprite_overflow_tests
+sprite_overflow_tests/1.Basics.nes 300 hash:4ea9bbaf # passed
+sprite_overflow_tests/2.Details.nes 300 hash:9e8f26e5 # passed
+sprite_overflow_tests/3.Timing.nes 300 hash:1adbe5d5 # passed
+sprite_overflow_tests/4.Obscure.nes 300 hash:abbe0e66 # passed
+sprite_overflow_tests/5.Emulator.nes 300 hash:a27b6100 # passed
+# vbl_nmi_timing
+vbl_nmi_timing/1.frame_basics.nes 300 hash:53234abf # passed
+vbl_nmi_timing/2.vbl_timing.nes 300 hash:ed6cb5c6 # passed
+vbl_nmi_timing/3.even_odd_frames.nes 300 hash:75a2f50c # passed
+vbl_nmi_timing/4.vbl_clear_timing.nes 300 hash:90e5bf94 # passed
+vbl_nmi_timing/5.nmi_suppression.nes 300 hash:02ef00a5 # passed
+vbl_nmi_timing/6.nmi_disable.nes 300 hash:281817c9 # passed
+vbl_nmi_timing/7.nmi_timing.nes 300 hash:43142251 # passed
+
+# Holy Mapperel v0.02 (fetch_roms.sh): the mapper it detects, the PRG / CHR memories and a result code
+# (0000 = all tests passed) on frame 240.
+# holy-mapperel
+holy-mapperel/testroms/M0_P32K_C8K_V.nes 240 hash:1e713dc7 # result 0000 (PRG RAM missing on boards that have none)
+holy-mapperel/testroms/M0_P32K_CR32K_V.nes 240 hash:e1990c9f # result 0000 (PRG RAM missing on boards that have none)
+holy-mapperel/testroms/M0_P32K_CR8K_V.nes 240 hash:e1990c9f # result 0000 (PRG RAM missing on boards that have none)
+holy-mapperel/testroms/M10_P128K_C64K_S8K.nes 240 hash:de667f55 # result 0000
+holy-mapperel/testroms/M10_P128K_C64K_W8K.nes 240 hash:de667f55 # result 0000
+holy-mapperel/testroms/M118_P128K_C64K.nes 240 hash:0a15a5e7 # result 0000
+holy-mapperel/testroms/M11_P64K_C64K_V.nes 240 hash:e110153f # result 0000 (PRG RAM missing on boards that have none)
+holy-mapperel/testroms/M11_P64K_CR32K_V.nes 240 hash:b4ed570d # result 0000 (PRG RAM missing on boards that have none)
+holy-mapperel/testroms/M180_P128K_CR8K_H.nes 240 hash:a042cdc5 # black: mapper not in this core
+holy-mapperel/testroms/M180_P128K_H.nes 240 hash:a042cdc5 # black: mapper not in this core
+holy-mapperel/testroms/M1_P128K.nes 240 hash:ac494177 # MMC1: result 5000
+holy-mapperel/testroms/M1_P128K_C128K.nes 240 hash:a8e6959d # MMC1: result 1000
+holy-mapperel/testroms/M1_P128K_C128K_S8K.nes 240 hash:a8e6959d # MMC1: result 1000
+holy-mapperel/testroms/M1_P128K_C128K_W8K.nes 240 hash:a8e6959d # MMC1: result 1000
+holy-mapperel/testroms/M1_P128K_C32K.nes 240 hash:8e0b2317 # MMC1: result 1000
+holy-mapperel/testroms/M1_P128K_C32K_S8K.nes 240 hash:8e0b2317 # MMC1: result 1000
+holy-mapperel/testroms/M1_P128K_C32K_W8K.nes 240 hash:8e0b2317 # MMC1: result 1000
+holy-mapperel/testroms/M1_P128K_CR8K.nes 240 hash:5d8b9387 # MMC1: result 5000
+holy-mapperel/testroms/M1_P512K_CR8K_S32K.nes 240 hash:a042cdc5 # black: SUROM (MMC1 512K PRG) not supported
+holy-mapperel/testroms/M1_P512K_CR8K_S8K.nes 240 hash:a042cdc5 # black: SUROM (MMC1 512K PRG) not supported
+holy-mapperel/testroms/M1_P512K_S32K.nes 240 hash:a042cdc5 # black: SUROM (MMC1 512K PRG) not supported
+holy-mapperel/testroms/M1_P512K_S8K.nes 240 hash:a042cdc5 # black: SUROM (MMC1 512K PRG) not supported
+holy-mapperel/testroms/M28_P512K.nes 240 hash:839e7467 # result 0000 (512K PRG since the 4 MB SRAM)
+holy-mapperel/testroms/M28_P512K_CR32K.nes 240 hash:2e6573f7 # result 0000 (512K PRG since the 4 MB SRAM)
+holy-mapperel/testroms/M2_P128K_CR8K_V.nes 240 hash:d5b687d7 # result 0000 (PRG RAM missing on boards that have none)
+holy-mapperel/testroms/M2_P128K_V.nes 240 hash:0283ce47 # result 0000 (PRG RAM missing on boards that have none)
+holy-mapperel/testroms/M34_P128K_CR8K_H.nes 240 hash:d34527ed # result 0000 (PRG RAM missing on boards that have none)
+holy-mapperel/testroms/M34_P128K_H.nes 240 hash:792347dd # result 0000 (PRG RAM missing on boards that have none)
+holy-mapperel/testroms/M3_P32K_C32K_H.nes 240 hash:ec63c4a5 # result 0000 (PRG RAM missing on boards that have none)
+holy-mapperel/testroms/M4_P128K.nes 240 hash:68e7826d # result 0000
+holy-mapperel/testroms/M4_P128K_CR32K.nes 240 hash:540c617d # result 0000
+holy-mapperel/testroms/M4_P128K_CR8K.nes 240 hash:540c617d # result 0000
+holy-mapperel/testroms/M4_P256K_C256K.nes 240 hash:0043bcb5 # result 0000
+holy-mapperel/testroms/M66_P64K_C16K_V.nes 240 hash:92a63b95 # result 0000 (PRG RAM missing on boards that have none)
+holy-mapperel/testroms/M69_P128K_C64K_S8K.nes 240 hash:a042cdc5 # black: the test crashes on FME-7 here
+holy-mapperel/testroms/M69_P128K_C64K_W8K.nes 240 hash:a042cdc5 # black: the test crashes on FME-7 here
+holy-mapperel/testroms/M78.3_P128K_C64K.nes 240 hash:a042cdc5 # black: mapper not in this core
+holy-mapperel/testroms/M7_P128K.nes 240 hash:c399d25d # result 0000 (PRG RAM missing on boards that have none)
+holy-mapperel/testroms/M7_P128K_CR8K.nes 240 hash:1dbbb26d # result 0000 (PRG RAM missing on boards that have none)
+holy-mapperel/testroms/M9_P128K_C64K.nes 240 hash:6b08c51d # result 0000 (PRG RAM missing on boards that have none)

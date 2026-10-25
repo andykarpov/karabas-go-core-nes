@@ -61,9 +61,14 @@ module MMC1(input clk, input ce, input reset,
   reg [4:0] prg_bank;
   
   // Update shift register
+  // karabas: the bank registers too, as NES_MiSTer does: every mapper here sees the writes of the CPU, so the game
+  // before (Contra, SMB3) left junk in them, and Tetris (32K, MMC1) started with the second bank at $8000
   always @(posedge clk) if (reset) begin
     shift <= 1;
     control <= 'hC;
+    chr_bank_0 <= 0;
+    chr_bank_1 <= 0;
+    prg_bank <= 0;
   end else if (ce) begin
     if (prg_write && prg_ain[15]) begin
       if (prg_din[7]) begin
@@ -305,6 +310,7 @@ module MMC3(input clk, input ce, input reset,
     {chr_bank_2, chr_bank_3, chr_bank_4, chr_bank_5} <= 0;
     {prg_bank_0, prg_bank_1} <= 0;
     a12_ctr <= 0;
+    mapper47_multicart <= 0; // karabas: the first block of the multicart after a reset
   end else if (ce) begin
     if (prg_write && prg_ain[15]) begin
       case({prg_ain[14], prg_ain[13], prg_ain[0]})

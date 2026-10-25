@@ -180,12 +180,23 @@ wire clk, clk_vga;
 wire locked;
 wire areset;
 
-nes_clk clock_21mhz(
- .CLK_IN1(CLK_50MHZ), 
- .CLK_OUT1(clk), // 21.x
- .CLK_OUT2(clk_vga), // 25.2
- .LOCKED(locked)
-);	
+// 50 MHz * 37 / 2 = 925 MHz VCO: clk 925 / 43 = 21.51 MHz, clk_vga 925 / 37 = 25.0 MHz
+wire [5:0] pll_clk;
+kg_pll #(
+ .CLKIN_PERIOD(20.0),
+ .DIVCLK_DIVIDE(2),
+ .CLKFBOUT_MULT(37),
+ .CLKOUT0_DIVIDE(43),
+ .CLKOUT1_DIVIDE(37),
+ .BUFG_MASK(6'b000011)
+) clock_21mhz(
+ .clk_in(CLK_50MHZ),
+ .rst(1'b0),
+ .clk_out(pll_clk),
+ .locked(locked)
+);
+assign clk = pll_clk[0]; // 21.x
+assign clk_vga = pll_clk[1]; // 25.0	
 assign areset = ~locked;
 	 
 //---------- MCU ------------
@@ -206,7 +217,21 @@ wire mcu_burst_ready;
 assign MCU_SPI_IO[0] = mcu_burst_ready;
 assign MCU_SPI_IO[1] = 1'bz;
 
-mcu mcu(
+kg_mcu #(
+	.BURST_MAX_MHZ(0),
+	.CS_FILTER(3),
+	.ENABLE_RTC(0),
+	.ENABLE_UART(0),
+	.ENABLE_MATRIX(0),
+	.ENABLE_DEBUG(0),
+	.ENABLE_IMG(1),
+	.ENABLE_FILE(1),
+	.FILE_CMDS(1),     // FILEBANK / FILEDATA / FILELOADER: the game for GameLoader
+	.FILE_WR_EACH(0),  // a write when the address changes, as mcu.vhd did
+	.FILE_TO_ROM(0),
+	.ENABLE_FT(1),
+	.ENABLE_SD2(1)
+) mcu(
 	.CLK(clk),
 	.N_RESET(~areset),
 	
@@ -260,7 +285,28 @@ mcu mcu(
 	.SD2_SCK(SD_CLK),
 	
 	.DEBUG_ADDR(16'h00),
-	.DEBUG_DATA(debug_data)
+	.DEBUG_DATA(debug_data),
+
+	// not used by this core
+	.RTC_A(8'h00),
+	.RTC_DI(8'h00),
+	.RTC_CS(1'b0),
+	.RTC_WR_N(1'b1),
+	.UART_TX_DATA(8'h00),
+	.UART_TX_WR(1'b0),
+	.UART_TX_MODE(1'b0),
+	.UART_DLM(8'h00),
+	.UART_DLL(8'h00),
+	.UART_DLM_WR(1'b0),
+	.UART_DLL_WR(1'b0),
+	.MATRIX_CMD(24'h000000),
+	.MATRIX_CMD_WR(1'b0),
+	.IMG_Q_WR(1'b0),
+	.IMG_Q_DI(24'h000000),
+	.ESP_UART_RX_DATA(8'h00),
+	.ESP_UART_RX_WR(1'b0),
+	.FLASHBOOT_START(1'b0),
+	.FLASHBOOT_COREID(5'd0)
 );
 
 //---------- HID Keyboard/Joy parser ------------
@@ -291,11 +337,15 @@ hid_parser hid_parser(
 wire kb_reset;
 wire btn_reset_n;
 
-soft_switches soft_switches(
-	.CLK(clk),
-	.SOFTSW_COMMAND(softsw_command),
-	.RESET(kb_reset)
+// register 0, bit 0: reset
+wire [7:0] softsw_regs;
+kg_soft_switches #(.N(1)) soft_switches(
+	.clk(clk),
+	.command(softsw_command),
+	.regs(softsw_regs),
+	.upd()
 );
+assign kb_reset = softsw_regs[0];
 
 assign btn_reset_n = ~kb_reset & ~mcu_busy;
 
@@ -303,7 +353,7 @@ assign btn_reset_n = ~kb_reset & ~mcu_busy;
 
 wire [15:0] audio_out_l, audio_out_r;
 
-PCM5102 PCM5102(
+kg_pcm5102 PCM5102(
 	.clk(clk),
 	.reset(areset),
 	.left(audio_out_l),
@@ -337,135 +387,33 @@ assign VGA_VS = video_vsync;
 
 //--------- NES --------------
 
-// NES Palette -> RGB332 conversion
-reg [14:0] pallut[0:63];
-initial $readmemh("nes_palette.txt", pallut);
-  
 wire [8:0] cycle;
 wire [8:0] scanline;
 wire [15:0] sample;
 wire [5:0] color;
-wire [21:0] memory_addr;
-wire memory_read_cpu, memory_read_ppu;
-wire memory_write;
-wire [7:0] memory_din_cpu, memory_din_ppu;
-wire [7:0] memory_dout;
-wire [31:0] dbgadr;
-wire [1:0] dbgctr;
-
-wire joypad_strobe;
-wire [1:0] joypad_clock;
-reg [7:0] joypad_bits, joypad_bits2;
-reg [1:0] last_joypad_clock;
-
-reg [1:0] nes_ce;
-
-// --------------- Loader 
-
-wire [21:0] loader_addr;
-wire [7:0] loader_write_data;
-wire loader_write;
-wire [31:0] mapper_flags;
 wire loader_done, loader_fail;
 
-assign loader_reset = fileloader_reset;
-  
-  GameLoader loader(
-    clk, 
-    loader_reset, 
-	 fileloader_data, 
-	 fileloader_wr,
-	 loader_addr, 
-	 loader_write_data, 
-	 loader_write,
-	 mapper_flags,
-	 loader_done,
-	 loader_fail,
-	 debug_data
-	);
-	
-  wire reset_nes = (kb_reset || !loader_done);
-  wire run_mem = (nes_ce == 0) && !reset_nes;
-  wire run_nes = (nes_ce == 3) && !reset_nes;
+nes_system nes_system(
+	.clk(clk),
+	.reset(kb_reset),
+	.loader_reset(fileloader_reset),
+	.loader_data(fileloader_data),
+	.loader_wr(fileloader_wr),
+	.loader_done(loader_done),
+	.loader_fail(loader_fail),
+	.debug_data(debug_data),
+	.joy_l(nes_joy_l),
+	.joy_r(nes_joy_r),
+	.color(color),
+	.cycle(cycle),
+	.scanline(scanline),
+	.sample(sample),
+	.MA(MA),
+	.MD(MD),
+	.MWR_N(MWR_N)
+);
+assign MRD_N = 2'b00;
 
-  // NES is clocked at every 4th cycle.
-  always @(posedge clk)
-    nes_ce <= nes_ce + 1;
-    
-  NES nes(clk, reset_nes, run_nes,
-          mapper_flags,
-          sample, color,
-          joypad_strobe, joypad_clock, {joypad_bits2[0], joypad_bits[0]},
-          5'b11111, // sw
-          memory_addr,
-          memory_read_cpu, memory_din_cpu,
-          memory_read_ppu, memory_din_ppu,
-          memory_write, memory_dout,
-          cycle, scanline,
-          dbgadr,
-          dbgctr
-   );
-
-  // This is the memory controller to access the board's SRAM
-  wire ram_busy;
-  reg [13:0] debugaddr;
-  wire [15:0] debugdata;
-
-  MemoryController  memory( clk,
-                            memory_read_cpu && run_mem, 
-                            memory_read_ppu && run_mem,
-                            memory_write && run_mem || loader_write,
-                            loader_write ? loader_addr : memory_addr,
-                            loader_write ? loader_write_data : memory_dout,
-                            memory_din_cpu, memory_din_ppu, ram_busy,
-                            MWR_N[0], MA[18:0], MD[7:0],
-                            debugaddr, debugdata);
-  assign MWR_N[1] = 1'b1;
-  assign MRD_N = 2'b00;
-  assign MA[20:19] = 2'b00;
-
-  reg ramfail;
-  always @(posedge clk) begin
-    if (loader_reset)
-      ramfail <= 0;
-    else
-      ramfail <= ram_busy && loader_write || ramfail;
-  end
-
-/*  wire [14:0] doubler_pixel;
-  wire doubler_sync;
-  wire [9:0] vga_hcounter, doubler_x;
-  wire [9:0] vga_vcounter;
-  wire [3:0] vid_r, vid_g, vid_b;
-  
-  assign video_r = {vid_r, vid_r};
-  assign video_g = {vid_g, vid_g};
-  assign video_b = {vid_b, vid_b};
-  
-  VgaDriver vga(
-		clk, 
-		video_hsync, 
-		video_vsync, 
-		vid_r, 
-		vid_g, 
-		vid_b, 
-		vga_hcounter, 
-		vga_vcounter, 
-		doubler_x, 
-		doubler_pixel, 
-		doubler_sync, 
-		1'b0); // sw0 - border, 0 = off
-  
-  wire [14:0] pixel_in = pallut[color];
-  
-  Hq2x hq2x(clk, pixel_in, 1'b1, // 1 - disable hq2x 
-            scanline[8],        // reset_frame
-            (cycle[8:3] == 42), // reset_line
-            doubler_x,          // 0-511 for line 1, or 512-1023 for line 2.
-            doubler_sync,       // new frame has just started
-            doubler_pixel);     // pixel is outputted
-				*/
-				
   vga vga(
 	.I_CLK(clk),
 	.I_CLK_VGA(clk_vga),
@@ -485,21 +433,6 @@ assign loader_reset = fileloader_reset;
 				
   assign audio_out_l = {sample[15] ^ 1'b1, sample[14:0]};
   assign audio_out_r = {sample[15] ^ 1'b1, sample[14:0]};
-  
-  always @(posedge clk) begin
-	if (joypad_strobe) begin
-		joypad_bits <= nes_joy_l;
-		joypad_bits2 <= nes_joy_r;
-	end
-	
-	if (!joypad_clock[0] && last_joypad_clock[0]) begin 
-		joypad_bits <= {1'b0, joypad_bits[7:1]};
-	end
-	if (!joypad_clock[1] && last_joypad_clock[1]) begin
-		joypad_bits2 <= {1'b0, joypad_bits2[7:1]};
-	end
-	last_joypad_clock <= joypad_clock;
-  end
   
 	ODDR2 u_v_clk (
 		.Q(V_CLK),

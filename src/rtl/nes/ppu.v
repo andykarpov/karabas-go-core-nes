@@ -631,7 +631,21 @@ module PPU(input clk, input ce, input reset,   // input clock  21.48 MHz / 4. 1 
 //  end
 
  
-  always @(posedge clk) if (ce) begin
+  // karabas: $2000 / $2001 cleared by the reset, as the NES does (a game loaded after another one started with
+  // its NMI enabled, and hung when the NMI came before it was ready, as Tetris after Contra)
+  always @(posedge clk) if (reset) begin
+    obj_patt <= 0;
+    bg_patt <= 0;
+    obj_size <= 0;
+    vbl_enable <= 0;
+    grayscale <= 0;
+    playfield_clip <= 0;
+    object_clip <= 0;
+    enable_playfield <= 0;
+    enable_objects <= 0;
+    color_intensity <= 0;
+    nmi_occured <= 0;
+  end else if (ce) begin
 //    if (!is_in_vblank && write)
 //      $write("%d/%d: $200%d <= %x\n", scanline, cycle, ain, din);
     if (write) begin

@@ -218,10 +218,46 @@ NET "FLASH_SCK"     LOC="R11"  | IOSTANDARD = LVCMOS33; # CONF_CLK
 NET "FLASH_WP_N"    LOC="N12"  | IOSTANDARD = LVCMOS33; # CONF_IO2
 NET "FLASH_HOLD_N"  LOC="P12"  | IOSTANDARD = LVCMOS33; # CONF_IO3
 
-# Timings
+# Timing constraints: the same in karabas_go.ucf, karabas_mini.ucf and karabas_minig.ucf.
+#
+# Clocks (kg_pll in the tops), one PLL on CLK_50MHZ, VCO 925 MHz (50 * 37 / 2), phase 0:
+#   pll_clk<0> 21.51 MHz (/43) -> clk: NES (the CPU, PPU, APU and mappers run on every 4th clock, nes_ce),
+#              memory controller, game loader, MCU link, OSD commands, audio
+#   pll_clk<1> 25.00 MHz (/37) -> clk_vga: 640x480 output (vga.vhd reads the frame buffer), OSD video;
+#              on the Mini / Mini G the input of the HDMI DCM (kg_dcm, x5 and its inverse for the serialisers)
+# The PERIOD of CLK_50MHZ is derived onto the PLL outputs and the DCM, so the paths in each clock and between
+# clk_vga and the 5x clocks of HDMI are analysed with their phases.
+# ------------------------------------------------------------------------------------------------------------
+NET "CLK_50MHZ" TNM_NET = "CLK_50MHZ";
+TIMESPEC "TS_CLK_50MHZ" = PERIOD "CLK_50MHZ" 20 ns HIGH 50%;
 
-NET "clk" TNM_NET = "clk";
+NET "pll_clk<0>" TNM_NET = "TG_CLK";
+NET "pll_clk<1>" TNM_NET = "TG_CLK_VGA";
 
-TIMESPEC "TS_CLK" = PERIOD "clk" 21000 kHz;
+# clk <-> clk_vga: the NES writes the frame buffer (vga.vhd) and the mcu the OSD text and font (overlay.vhd) on
+# clk, they are read on clk_vga: block RAMs with a port in each clock, no path between the clocks through them.
+# The paths that cross are static or slow signals taken by clk_vga registers without synchronisers: the OSD
+# switches (osd_overlay, osd_popup), the audio sample of the HDMI audio (Mini, Mini G; a sample changes at 
+# 48 kHz or less, a sample torn in one clk_vga is possible as before). The two clocks come from one VCO
+# (/43 and /37): the phase analysis of the PERIODs asks for one VCO step (1.08 ns) on some edges, which these
+# paths do not rely on. Their data paths are bounded by one period of clk_vga instead.
+TIMESPEC "TS_CLK_TO_VGA" = FROM "TG_CLK" TO "TG_CLK_VGA" 40 ns DATAPATHONLY;
+TIMESPEC "TS_VGA_TO_CLK" = FROM "TG_CLK_VGA" TO "TG_CLK" 40 ns DATAPATHONLY;
 
+# MCU link (kg_mcu): SPI mode 0 from the RP2040 at 16 MHz, bursts up to 32 MHz on the Mini G (BURST_MAX_MHZ).
+NET "MCU_SCK" TNM_NET = "TG_CLK_MCU";
+TIMESPEC "TS_CLK_MCU" = PERIOD "TG_CLK_MCU" 32 MHz;
+# MCU_SCK is not related to CLK_50MHZ, the PERIODs do not cover the paths between it and clk. kg_mcu crosses
+# with toggle synchronisers (2-3 flip-flops) and holds the data registers for 8 SCK periods (a received byte)
+# or from the request to the next SCK edges (a reply word): their data paths are bounded by one SCK period.
+TIMESPEC "TS_MCU_TO_CLK" = FROM "TG_CLK_MCU" TO "TG_CLK" 31.25 ns DATAPATHONLY;
+TIMESPEC "TS_CLK_TO_MCU" = FROM "TG_CLK" TO "TG_CLK_MCU" 31.25 ns DATAPATHONLY;
 
+# SRAM, asynchronous, two byte lanes of 2M x 8, 10 ns (tAA), on MemoryController (rtl/nes/memorycontroller.v,
+# clk): the address comes from its registers at the first edge of a slot and a read takes MD into md_q at the
+# next edge, one clk (46.5 ns): 15 ns out + 10 ns tAA + 15 ns in + 6.5 ns of board traces. /WE and the write data
+# change on the falling edges (half a clk after and before the address). /OE (MRD_N) is tied low.
+TIMEGRP "TG_SRAM_IN" = PADS("MD<*>");
+TIMEGRP "TG_SRAM_OUT" = "TG_SRAM_IN" PADS("MA<*>") PADS("MWR_N<*>");
+TIMESPEC "TS_SRAM_OUT" = FROM FFS TO "TG_SRAM_OUT" 15 ns DATAPATHONLY;
+TIMESPEC "TS_SRAM_IN" = FROM "TG_SRAM_IN" TO FFS 15 ns DATAPATHONLY;
