@@ -563,6 +563,11 @@ hdmi hdmi(
 
 wire [9:0] dvi_red, dvi_green, dvi_blue;
 
+// dvi_only (mcu, clk) into clk_vga: the select of the encoders below goes into the serialisers on clk_hdmi
+// and must come from a clk_vga register, as the encoded words do
+wire dvi_only_vga;
+kg_sync dvi_only_sync(.clk(clk_vga), .d(dvi_only), .q(dvi_only_vga));
+
 dvi dvi(
 	.CLK(clk_vga),
 	.RESET(areset),
@@ -579,9 +584,9 @@ hdmi_out_xilinx hdmiio(
 	.clock_pixel_i(clk_vga),
 	.clock_tdms_i(clk_hdmi),
 	.clock_tdms_n_i(clk_hdmi_n),
-	.red_i(dvi_only ? dvi_red : tmds_red),
-	.green_i(dvi_only ? dvi_green : tmds_green),
-	.blue_i(dvi_only ? dvi_blue : tmds_blue),
+	.red_i(dvi_only_vga ? dvi_red : tmds_red),
+	.green_i(dvi_only_vga ? dvi_green : tmds_green),
+	.blue_i(dvi_only_vga ? dvi_blue : tmds_blue),
 	.tmds_out_p(TMDS_P),
 	.tmds_out_n(TMDS_N)
 );	

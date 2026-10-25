@@ -20,7 +20,8 @@ The board modules (MCU link, memories, clocks, DACs) come from the git submodule
 
 ## Timing
 
-The ucf files still have the constraints of the ISE projects: separate PERIODs on the two PLL outputs (`pll_clk<0>` = clk, 21.51 MHz; `pll_clk<1>` = clk_vga, 25.0 MHz; on the Mini / Mini G the 5x HDMI clocks of the DCM), with 21.0 / 25.2 MHz written in them. The two clocks are not related, so the crossings clk -> clk_vga (framebuffer, OSD) and MCU_SCK -> clk are not analysed. Real constraints (a PERIOD on CLK_50MHZ, bounded DATAPATHONLY crossings, the SRAM budget) as in profi / tsconf are still to be done.
+- The three ucf have the same timing block (the end of each file): PERIOD on CLK_50MHZ, derived onto the PLL outputs (`pll_clk<0>` = clk 21.51 MHz, `pll_clk<1>` = clk_vga 25.0 MHz) and the HDMI DCM (5x clk_vga and its inverse); `TS_CLK_MCU` 32 MHz; FROM-TO DATAPATHONLY on the asynchronous crossings (clk <-> clk_vga one clk_vga period, MCU_SCK <-> clk one SCK period); the SRAM budget (20 ns out + 10 ns tAA + 20 ns in of the three clk of a MemoryController access). Each exception is explained there; do not TIG paths that are real.
+- A signal of clk that the HDMI serialisers use (the encoder select `dvi_only`) goes through `kg_sync` into clk_vga first: from clk it reaches the 5x clock with the phase of two unrelated dividers of one VCO.
 
 ## Simulation
 
