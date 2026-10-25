@@ -16,6 +16,8 @@
 #   the hash of the palette indices of frame <max frames> (sim_nes --hash; ../build/nes/results/<rom>.ppm to
 #   look at).
 #   joy: joypad 1 from frame F on (sim_nes --joy), e.g. joy=400:08,410:00 presses Start for 10 frames.
+#   before=ROM:N (after joy, or in its place): run ROM (of the same directory) N frames first, then load the
+#   test ROM over it (sim_nes --before), as a game chosen after another one on the board.
 # A test that gives another result than expected is reported as REGRESSION (worse) or CHANGED (it now passes,
 # or another picture: update the list). Prints "run_tests: N tests, M unexpected" and exits 1 when M > 0.
 # The output of each run is in ../build/nes/results/<rom>.log (and .ppm).
@@ -37,14 +39,17 @@ SIM=$HERE/../build/nes/obj/sim_nes
 
 run_one() {
 	line=${1%% \#*}
-	if [[ "$line" == *"|"* ]]; then IFS='|' read -r rom frames expected joy <<< "$line"
-	else read -r rom frames expected joy <<< "$line"; fi
+	if [[ "$line" == *"|"* ]]; then IFS='|' read -r rom frames expected joy before <<< "$line"
+	else read -r rom frames expected joy before <<< "$line"; fi
 	rom=$(echo "$rom" | sed 's/^ *//; s/ *$//'); frames=${frames// /}; expected=${expected// /}; joy=${joy// /}
+	before=$(echo "$before" | sed 's/^ *//; s/ *$//')
+	if [[ "$joy" == before=* ]]; then before=${joy}; joy=; fi
 	joyargs=()
 	if [ -n "$joy" ]; then
 		for j in $(echo "${joy#joy=}" | tr , ' '); do joyargs+=(--joy "$j"); done
 	fi
-	log=$OUT/$(echo "$rom" | tr '/ ' '__').log
+	if [ -n "$before" ]; then joyargs+=(--before "$ROMS/${before#before=}"); fi
+	log=$OUT/$(echo "$rom" | tr '/ ' '__')${before:+_after_$(basename "${before#before=}" | tr ' ' _)}.log
 	# $readmemh of ppu.v reads oam_palette.txt from the current directory
 	case "$expected" in
 	hash:*)
@@ -66,7 +71,7 @@ run_one() {
 		else status=REGRESSION; fi
 		;;
 	esac
-	printf "%-10s %-62s %-8s (expected %s) %s\n" "$status" "$rom" "$result" "$expected" "$text"
+	printf "%-10s %-62s %-8s (expected %s) %s\n" "$status" "$rom${before:+ after $(basename "${before#before=}")}" "$result" "$expected" "$text"
 }
 export -f run_one
 export ROMS OUT SIM HERE

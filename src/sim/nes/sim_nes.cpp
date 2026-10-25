@@ -9,6 +9,9 @@
 //   --hash            print the FNV-1a hash of the palette indices of the last frame
 //   --joy F:BITS      hold joypad 1 BITS (hex, A B Select Start Up Down Left Right = bits 0..7) from
 //                     frame F on (repeatable, a later F replaces it)
+//   --trace F N       print the CPU bus accesses of frames F..F+N-1
+//   --before GAME:N   first load GAME and run it N frames (the memories keep what it left there, as on the
+//                     board when a game is chosen after another one), then load <game.nes> (repeatable)
 //
 // Exit code: 0 done (blargg result 0, or the frame count reached without --blargg), 1 blargg failure
 // code, 2 load error or timeout, 3 usage. The blargg text ($6004..) is printed.
@@ -59,46 +62,20 @@ static bool write_ppm(const char *name, const uint8_t *fb) {
 	return true;
 }
 
-int main(int argc, char **argv) {
-	Verilated::commandArgs(argc, argv);
-	if (argc < 2) {
-		fprintf(stderr, "usage: %s game.nes [--frames N] [--blargg] [--ppm F] [--ppm-at N F] [--hash] [--joy F:BITS]\n", argv[0]);
-		return 3;
-	}
-	const char *rom_name = argv[1];
-	long max_frames = 600;
-	bool blargg = false, hash = false;
-	const char *ppm = nullptr;
-	std::map<long, std::string> ppm_at;
-	std::map<long, int> joy;
-	for (int i = 2; i < argc; i++) {
-		if (!strcmp(argv[i], "--frames") && i + 1 < argc) max_frames = atol(argv[++i]);
-		else if (!strcmp(argv[i], "--blargg")) blargg = true;
-		else if (!strcmp(argv[i], "--hash")) hash = true;
-		else if (!strcmp(argv[i], "--ppm") && i + 1 < argc) ppm = argv[++i];
-		else if (!strcmp(argv[i], "--ppm-at") && i + 2 < argc) { long n = atol(argv[++i]); ppm_at[n] = argv[++i]; }
-		else if (!strcmp(argv[i], "--joy") && i + 1 < argc) {
-			long f; int b;
-			if (sscanf(argv[++i], "%ld:%x", &f, &b) != 2) { fprintf(stderr, "bad --joy %s\n", argv[i]); return 3; }
-			joy[f] = b;
-		}
-		else if (argv[i][0] == '+') ; // verilator options
-		else { fprintf(stderr, "unknown option %s\n", argv[i]); return 3; }
-	}
-
-	FILE *f = fopen(rom_name, "rb");
-	if (!f) { perror(rom_name); return 2; }
+static std::vector<uint8_t> read_file(const char *name) {
 	std::vector<uint8_t> rom;
+	FILE *f = fopen(name, "rb");
+	if (!f) { perror(name); return rom; }
 	int c;
 	while ((c = fgetc(f)) != EOF) rom.push_back((uint8_t)c);
 	fclose(f);
+	return rom;
+}
 
-	top = new Vtb_nes;
-	top->reset = 0;
-	top->joy_l = 0;
-	top->joy_r = 0;
-	top->loader_wr = 0;
-	top->loader_data = 0;
+// loads a game as the mcu does (also over a running one)
+static bool load(const char *name) {
+	std::vector<uint8_t> rom = read_file(name);
+	if (rom.empty()) return false;
 	top->loader_reset = 1;
 	for (int i = 0; i < 16; i++) tick();
 	top->loader_reset = 0;
@@ -113,9 +90,69 @@ int main(int argc, char **argv) {
 	}
 	for (int i = 0; i < 64; i++) tick();
 	if (top->loader_fail || !top->loader_done) {
-		fprintf(stderr, "%s: load %s (%zu bytes)\n", rom_name, top->loader_fail ? "error" : "not done", rom.size());
-		return 2;
+		fprintf(stderr, "%s: load %s (%zu bytes)\n", name, top->loader_fail ? "error" : "not done", rom.size());
+		return false;
 	}
+	return true;
+}
+
+// runs n frames (the RAM clear after the load, then the game), no joypad
+static void run_frames(long n) {
+	int last = top->scanline;
+	for (long fr = 0; fr < n; ) {
+		tick();
+		if (top->scanline == 240 && last == 239) fr++;
+		last = top->scanline;
+	}
+}
+
+int main(int argc, char **argv) {
+	Verilated::commandArgs(argc, argv);
+	if (argc < 2) {
+		fprintf(stderr, "usage: %s game.nes [--frames N] [--blargg] [--ppm F] [--ppm-at N F] [--hash] [--joy F:BITS]\n", argv[0]);
+		return 3;
+	}
+	const char *rom_name = argv[1];
+	long max_frames = 600;
+	bool blargg = false, hash = false;
+	const char *ppm = nullptr;
+	std::map<long, std::string> ppm_at;
+	std::map<long, int> joy;
+	std::vector<std::pair<std::string, long>> before;
+	long trace_from = -1, trace_n = 0;
+	for (int i = 2; i < argc; i++) {
+		if (!strcmp(argv[i], "--frames") && i + 1 < argc) max_frames = atol(argv[++i]);
+		else if (!strcmp(argv[i], "--blargg")) blargg = true;
+		else if (!strcmp(argv[i], "--hash")) hash = true;
+		else if (!strcmp(argv[i], "--ppm") && i + 1 < argc) ppm = argv[++i];
+		else if (!strcmp(argv[i], "--ppm-at") && i + 2 < argc) { long n = atol(argv[++i]); ppm_at[n] = argv[++i]; }
+		else if (!strcmp(argv[i], "--joy") && i + 1 < argc) {
+			long f; int b;
+			if (sscanf(argv[++i], "%ld:%x", &f, &b) != 2) { fprintf(stderr, "bad --joy %s\n", argv[i]); return 3; }
+			joy[f] = b;
+		}
+		else if (!strcmp(argv[i], "--trace") && i + 2 < argc) { trace_from = atol(argv[++i]); trace_n = atol(argv[++i]); }
+		else if (!strcmp(argv[i], "--before") && i + 1 < argc) {
+			std::string a = argv[++i];
+			size_t k = a.rfind(':');
+			if (k == std::string::npos) { fprintf(stderr, "bad --before %s\n", a.c_str()); return 3; }
+			before.push_back({a.substr(0, k), atol(a.c_str() + k + 1)});
+		}
+		else if (argv[i][0] == '+') ; // verilator options
+		else { fprintf(stderr, "unknown option %s\n", argv[i]); return 3; }
+	}
+
+	top = new Vtb_nes;
+	top->reset = 0;
+	top->joy_l = 0;
+	top->joy_r = 0;
+	top->loader_wr = 0;
+	top->loader_data = 0;
+	for (auto &b : before) {
+		if (!load(b.first.c_str())) return 2;
+		run_frames(b.second);
+	}
+	if (!load(rom_name)) return 2;
 
 	// the loader result (check_loader.py compares it with the header and the file)
 	printf("loaded: crc %08x flags %016llx\n", top->rom_crc, (unsigned long long)top->mapper_flags);
@@ -130,7 +167,8 @@ int main(int argc, char **argv) {
 	const uint64_t clk_hz = 21511628, frame_clocks = clk_hz / 60;
 	uint64_t reset_until = 0, resets = 0;
 	long released = -100; // the frame after the last release: $81 stays until the ROM writes $80 again
-	while (frame < max_frames && clocks < (max_frames + resets * 6 + 60) * frame_clocks) {
+	const uint64_t start = clocks; // after the games of --before
+	while (frame < max_frames && clocks - start < (max_frames + resets * 6 + 60) * frame_clocks) {
 		tick();
 		if (reset_until && clocks >= reset_until) {
 			top->reset = 0;
@@ -141,6 +179,7 @@ int main(int argc, char **argv) {
 		if (x < 256 && y < 240) fb[y * 256 + x] = top->color;
 		if (y == 240 && last_scanline == 239) {
 			frame++;
+			top->trace_on = frame >= trace_from && frame < trace_from + trace_n;
 			auto j = joy.find(frame);
 			if (j != joy.end()) top->joy_l = j->second;
 			auto p = ppm_at.find(frame);

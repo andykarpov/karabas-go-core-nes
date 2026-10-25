@@ -25,6 +25,7 @@ module tb_nes (
 	output wire [8:0] cycle,
 	output wire [8:0] scanline,
 	output wire [15:0] sample,
+	input wire trace_on,             // print the CPU bus accesses (sim_nes --trace)
 	input wire [12:0] status_addr,
 	output wire [7:0] status_data
 );
@@ -59,6 +60,10 @@ initial for (i = 0; i < 8192; i = i + 1) cpu_6000[i] = 8'h00;
 always @(posedge clk)
 	if (dut.nes.mw_int && dut.nes.addr[15:13] == 3'b011)
 		cpu_6000[dut.nes.addr[12:0]] <= dut.nes.dbus;
+always @(posedge clk)
+	if (trace_on && dut.run_nes && dut.nes.cpu_cycle_counter == 2)
+		$display("%s%s %04x %02x", dut.nes.mw_int ? "W" : "", dut.nes.mr_int ? "R" : "", dut.nes.addr, dut.nes.mw_int ? dut.nes.dbus : dut.nes.from_data_bus);
+
 assign status_data = cpu_6000[status_addr];
 
 endmodule

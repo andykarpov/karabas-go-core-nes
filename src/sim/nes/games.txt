@@ -9,6 +9,7 @@ ZX/sd1_go/NES/Bomberman.nes | 720 | hash:4ac3d5dd | joy=360:08,370:00,540:08,550
 ZX/sd1_go/NES/Micro_Mages_final_2019.nes | 720 | hash:2f60b7b3 | joy=360:08,370:00,540:08,550:00 # title
 # mapper 1 (MMC1)
 ZX/sd1_go/NES/Tetris.nes | 720 | hash:ee575662 | joy=360:08,370:00,540:08,550:00 # game type menu
+ZX/sd1_go/NES/Tetris.nes | 720 | hash:ee575662 | joy=360:08,370:00,540:08,550:00 | before=ZX/sd1_go/NES/Contra.nes:200 # MMC1 banks after a reset (were left by the game before)
 ZX/sd1_go/NES/Chip n Dale RR.nes | 720 | hash:109069af | joy=360:08,370:00,540:08,550:00 # intro dialog
 ZX/sd1_go/NES/Zelda II - The Nightmare of.nes | 720 | hash:28916a71 | joy=360:08,370:00,540:08,550:00 # register your name
 ZX/sd1_go/NES/Ultima_-_Exodus_Remastered_.nes | 720 | hash:2ac04d8b | joy=360:08,370:00,540:08,550:00 # register / erase menu

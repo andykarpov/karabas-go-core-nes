@@ -105,14 +105,19 @@ reg clear_done = 1'b0;
    );
 
   // the loader writes through the aux port of the memory controller: a byte held until the controller took it.
-  // After the game is in, the PRG RAM (0x3C0000, 32 KB, but the trainer at 0x3C1000) and the mapper RAM
-  // (0x3FE000, 8 KB) are cleared to 0, as NES_MiSTer does: they live in the SRAM now, which starts with junk.
+  // After the game is in, the PRG RAM (0x3C0000, 32 KB, but the trainer at 0x3C1000), the mapper RAM (0x3FE000,
+  // 8 KB), the VRAM and the CPU RAM (block RAM, 2 KB each) are cleared to 0, as NES_MiSTer does with RAM Clear
+  // $00: the SRAM starts with junk, and the block RAMs keep what the game before left there (some games hang
+  // on it, as Tetris after Contra).
   reg [21:0] aux_addr = 22'd0;
   reg [7:0] aux_din = 8'd0;
   wire aux_ack;
   reg ramfail = 1'b0; // a loader byte came before the one before it was written (not seen at the speed of the mcu)
-  reg [15:0] clear_ctr = 16'd0; // 0-32767 PRG RAM, 32768-40959 mapper RAM
-  wire [21:0] clear_addr = clear_ctr[15] ? {9'b11_1111_111, clear_ctr[12:0]} : {7'b11_1100_0, clear_ctr[14:0]};
+  reg [15:0] clear_ctr = 16'd0; // 0-32767 PRG RAM, 32768-40959 mapper RAM, -43007 VRAM, -45055 CPU RAM
+  wire [21:0] clear_addr = !clear_ctr[15] ? {7'b11_1100_0, clear_ctr[14:0]} :
+                           !clear_ctr[13] ? {9'b11_1111_111, clear_ctr[12:0]} :
+                           !clear_ctr[11] ? {11'b11_0000_0000_0, clear_ctr[10:0]} :
+                                            {11'b11_1000_0000_0, clear_ctr[10:0]};
   wire clear_skip = loader_trainer && clear_ctr[15:9] == 7'b0000_100; // 0x1000-0x11FF: the trainer
   always @(posedge clk) begin
     if (aux_ack)
@@ -137,7 +142,7 @@ reg clear_done = 1'b0;
           aux_din <= 8'h00;
         end
         clear_ctr <= clear_ctr + 1'd1;
-        if (clear_ctr == 16'd40959)
+        if (clear_ctr == 16'd45055)
           clear_done <= 1'b1;
       end
     end
