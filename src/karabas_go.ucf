@@ -253,12 +253,11 @@ TIMESPEC "TS_CLK_MCU" = PERIOD "TG_CLK_MCU" 32 MHz;
 TIMESPEC "TS_MCU_TO_CLK" = FROM "TG_CLK_MCU" TO "TG_CLK" 31.25 ns DATAPATHONLY;
 TIMESPEC "TS_CLK_TO_MCU" = FROM "TG_CLK" TO "TG_CLK_MCU" 31.25 ns DATAPATHONLY;
 
-# SRAM, asynchronous, 10 ns (tAA), on MemoryController (rtl/nes/memorycontroller.v, clk): the address and /WE
-# come from its registers, a read takes the data into dout_a / dout_b three clk later (139 ns), a write holds the
-# address, the data and /WE for three clk. 20 ns out + 10 ns tAA + 20 ns in leave the rest of the 139 ns to the
-# board. /OE (MRD_N) is tied low.
-TIMEGRP "TG_SRAM_IN" = PADS("MD<0>") PADS("MD<1>") PADS("MD<2>") PADS("MD<3>") PADS("MD<4>") PADS("MD<5>")
-	PADS("MD<6>") PADS("MD<7>");
-TIMEGRP "TG_SRAM_OUT" = "TG_SRAM_IN" PADS("MA<*>") PADS("MWR_N<0>");
-TIMESPEC "TS_SRAM_OUT" = FROM FFS TO "TG_SRAM_OUT" 20 ns DATAPATHONLY;
-TIMESPEC "TS_SRAM_IN" = FROM "TG_SRAM_IN" TO FFS 20 ns DATAPATHONLY;
+# SRAM, asynchronous, two byte lanes of 2M x 8, 10 ns (tAA), on MemoryController (rtl/nes/memorycontroller.v,
+# clk): the address comes from its registers at the first edge of a slot and a read takes MD into md_q at the
+# next edge, one clk (46.5 ns): 15 ns out + 10 ns tAA + 15 ns in + 6.5 ns of board traces. /WE and the write data
+# change on the falling edges (half a clk after and before the address). /OE (MRD_N) is tied low.
+TIMEGRP "TG_SRAM_IN" = PADS("MD<*>");
+TIMEGRP "TG_SRAM_OUT" = "TG_SRAM_IN" PADS("MA<*>") PADS("MWR_N<*>");
+TIMESPEC "TS_SRAM_OUT" = FROM FFS TO "TG_SRAM_OUT" 15 ns DATAPATHONLY;
+TIMESPEC "TS_SRAM_IN" = FROM "TG_SRAM_IN" TO FFS 15 ns DATAPATHONLY;

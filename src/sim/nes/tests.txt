@@ -185,8 +185,8 @@ holy-mapperel/testroms/M1_P512K_CR8K_S32K.nes 240 hash:a042cdc5 # black: SUROM (
 holy-mapperel/testroms/M1_P512K_CR8K_S8K.nes 240 hash:a042cdc5 # black: SUROM (MMC1 512K PRG) not supported
 holy-mapperel/testroms/M1_P512K_S32K.nes 240 hash:a042cdc5 # black: SUROM (MMC1 512K PRG) not supported
 holy-mapperel/testroms/M1_P512K_S8K.nes 240 hash:a042cdc5 # black: SUROM (MMC1 512K PRG) not supported
-holy-mapperel/testroms/M28_P512K.nes 240 hash:a042cdc5 # black: mapper not in this core
-holy-mapperel/testroms/M28_P512K_CR32K.nes 240 hash:a042cdc5 # black: mapper not in this core
+holy-mapperel/testroms/M28_P512K.nes 240 hash:839e7467 # result 0000 (512K PRG since the 4 MB SRAM)
+holy-mapperel/testroms/M28_P512K_CR32K.nes 240 hash:2e6573f7 # result 0000 (512K PRG since the 4 MB SRAM)
 holy-mapperel/testroms/M2_P128K_CR8K_V.nes 240 hash:d5b687d7 # result 0000 (PRG RAM missing on boards that have none)
 holy-mapperel/testroms/M2_P128K_V.nes 240 hash:0283ce47 # result 0000 (PRG RAM missing on boards that have none)
 holy-mapperel/testroms/M34_P128K_CR8K_H.nes 240 hash:d34527ed # result 0000 (PRG RAM missing on boards that have none)

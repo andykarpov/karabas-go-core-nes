@@ -5,9 +5,9 @@
  nes_system.v
 
  The NES of the three tops: the game loader (iNES from the file loader of the mcu), the NES (CPU, PPU,
- APU, mapper; clocked by every 4th clk, nes_ce), the memory controller (PRG / CHR ROM in the SRAM, CPU
- RAM, VRAM and PRG RAM in block RAM) and the joypad shift registers. The simulation (src/sim/nes) runs
- the same module with a model of the SRAM.
+ APU, mapper; clocked by every 4th clk, nes_ce), the memory controller (the 4 MB SRAM: PRG / CHR ROM,
+ PRG RAM; CPU RAM and VRAM in block RAM; see memorycontroller.v) and the joypad shift registers. The
+ simulation (src/sim/nes) runs the same module with a model of the SRAM.
 */
 
 module nes_system (
@@ -32,10 +32,10 @@ module nes_system (
 	output wire [8:0] scanline,
 	output wire [15:0] sample,     // two's complement
 
-	// SRAM, the low byte lane
-	output wire [18:0] MA,
-	inout wire [7:0] MD,
-	output wire MWR_N
+	// SRAM, 2M x 16 (/OE tied low by the tops)
+	output wire [20:0] MA,
+	inout wire [15:0] MD,
+	output wire [1:0] MWR_N
 );
 
 wire [21:0] memory_addr;
@@ -59,6 +59,7 @@ wire [21:0] loader_addr;
 wire [7:0] loader_write_data;
 wire loader_write;
 wire [31:0] mapper_flags;
+reg aux_req = 1'b0;
 
   GameLoader loader(
     clk,
@@ -74,7 +75,8 @@ wire [31:0] mapper_flags;
 	 debug_data
 	);
 
-  wire reset_nes = (reset || !loader_done);
+  // (the last byte of the loader may still wait for its slot when it says done)
+  wire reset_nes = (reset || !loader_done || aux_req);
   wire run_mem = (nes_ce == 0) && !reset_nes;
   wire run_nes = (nes_ce == 3) && !reset_nes;
 
@@ -96,28 +98,31 @@ wire [31:0] mapper_flags;
           dbgctr
    );
 
-  // This is the memory controller to access the board's SRAM
-  wire ram_busy;
-  reg [13:0] debugaddr;
-  wire [15:0] debugdata;
-
-  MemoryController  memory( clk,
-                            memory_read_cpu && run_mem,
-                            memory_read_ppu && run_mem,
-                            memory_write && run_mem || loader_write,
-                            loader_write ? loader_addr : memory_addr,
-                            loader_write ? loader_write_data : memory_dout,
-                            memory_din_cpu, memory_din_ppu, ram_busy,
-                            MWR_N, MA, MD,
-                            debugaddr, debugdata);
-
-  reg ramfail;
+  // the loader writes through the aux port of the memory controller: a byte held until the controller took it
+  reg [21:0] aux_addr = 22'd0;
+  reg [7:0] aux_din = 8'd0;
+  wire aux_ack;
+  reg ramfail = 1'b0; // a loader byte came before the one before it was written (not seen at the speed of the mcu)
   always @(posedge clk) begin
+    if (aux_ack)
+      aux_req <= 1'b0;
+    if (loader_write) begin
+      aux_req <= 1'b1;
+      aux_addr <= loader_addr;
+      aux_din <= loader_write_data;
+    end
     if (loader_reset)
-      ramfail <= 0;
-    else
-      ramfail <= ram_busy && loader_write || ramfail;
+      ramfail <= 1'b0;
+    else if (loader_write && aux_req && !aux_ack)
+      ramfail <= 1'b1;
   end
+
+  MemoryController memory(
+    .clk(clk), .phase(nes_ce),
+    .read_a(memory_read_cpu && run_mem), .read_b(memory_read_ppu && run_mem), .write(memory_write && run_mem),
+    .addr(memory_addr), .din(memory_dout), .dout_a(memory_din_cpu), .dout_b(memory_din_ppu),
+    .aux_req(aux_req), .aux_we(1'b1), .aux_addr(aux_addr), .aux_din(aux_din), .aux_ack(aux_ack), .aux_dout(),
+    .MA(MA), .MD(MD), .MWR_N(MWR_N));
 
   always @(posedge clk) begin
 	if (joypad_strobe) begin

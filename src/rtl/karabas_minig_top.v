@@ -432,13 +432,11 @@ nes_system nes_system(
 	.cycle(cycle),
 	.scanline(scanline),
 	.sample(sample),
-	.MA(MA[18:0]),
-	.MD(MD[7:0]),
-	.MWR_N(MWR_N[0])
+	.MA(MA),
+	.MD(MD),
+	.MWR_N(MWR_N)
 );
-assign MWR_N[1] = 1'b1;
 assign MRD_N = 2'b00;
-assign MA[20:19] = 2'b00;
 
   vga vga(
 	.I_CLK(clk),

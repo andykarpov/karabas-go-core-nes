@@ -2,7 +2,9 @@
 
 /*
  tb_nes.v: the top of the NES simulation (verilator, sim_nes.cpp drives it): nes_system of the tops with a
- model of the SRAM (512K x 8, the low byte lane MA / MD / MWR_N; /OE is tied low on the boards).
+ model of the SRAM: two byte lanes of 2M x 8 (MD[7:0] / MWR_N[0], MD[15:8] / MWR_N[1]), /OE tied low as on
+ the boards, so a lane drives MD while its /WE is high and takes MD while /WE is low (here: at each falling
+ clock edge with /WE low, where the controller changes /WE and the data).
  status_addr / status_data read $6000 + status_addr as the CPU wrote it, for the result protocol of the
  blargg test ROMs: a copy of the CPU writes to $6000-$7FFF on the bus of the NES, so it works with mappers
  that have no PRG RAM in this core (NROM, MMC0).
@@ -25,9 +27,9 @@ module tb_nes (
 	output wire [7:0] status_data
 );
 
-wire [18:0] ma;
-wire [7:0] md;
-wire mwr_n;
+wire [20:0] ma;
+wire [15:0] md;
+wire [1:0] mwr_n;
 wire [15:0] debug_data;
 
 nes_system dut (
@@ -39,12 +41,14 @@ nes_system dut (
 	.MA(ma), .MD(md), .MWR_N(mwr_n)
 );
 
-// asynchronous SRAM: the controller holds the address, data and /WE for three clocks
-reg [7:0] sram [0:(1<<19)-1];
-assign md = mwr_n ? sram[ma] : 8'bz;
-always @(posedge clk)
-	if (!mwr_n)
-		sram[ma] <= md;
+reg [7:0] sram_lo [0:(1<<21)-1];
+reg [7:0] sram_hi [0:(1<<21)-1];
+assign md[7:0] = mwr_n[0] ? sram_lo[ma] : 8'bz;
+assign md[15:8] = mwr_n[1] ? sram_hi[ma] : 8'bz;
+always @(negedge clk) begin
+	if (!mwr_n[0]) sram_lo[ma] <= md[7:0];
+	if (!mwr_n[1]) sram_hi[ma] <= md[15:8];
+end
 
 reg [7:0] cpu_6000 [0:8191];
 integer i;
