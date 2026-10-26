@@ -48,7 +48,7 @@ ZX/sd1_go/NES/R-Type_hack_2019.nes | 720 | hash:e25b74a8 | joy=360:08,370:00,540
 ZX/sd1_go/NES/Cheril_the_Writer_PD_FullRe.nes | 720 | hash:375cddfe | joy=360:08,370:00,540:08,550:00 # level 01
 # mapper 118 (TxSROM)
 ZX/sd1_go/NES/Rick and Morty.nes | 720 | hash:5b3b650d | joy=360:08,370:00,540:08,550:00 # character select
-# mapper 210 (Namco 175/340), not in this core
-ZX/sd1_go/NES/MK2.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: mapper 210 missing
+# mapper 210 in the header, but a JY Company game (90: writes $8500, $D500, waits on the IRQ registers $C502-5)
+ZX/sd1_go/NES/MK2.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: wrong mapper in the header
 # mapper 241, not in this core
 ZX/sd1_go/NES/Allied_Death_Squad_Ch_EngPa.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: mapper 241 missing
