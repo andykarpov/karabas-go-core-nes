@@ -30,7 +30,7 @@ JSON_mini = core_mini.json
 JSON_minig = core_minig.json
 
 # map / par options (as the .xise projects had them, the same on the three boards)
-MAP = -logic_opt off -ol high -xe n -t 1 -xt 0 -register_duplication off -r 4 -global_opt off -mt 2 -detail -ir off -pr b -lc off -power off
+MAP = -logic_opt off -ol high -xe n -t 1 -xt 0 -register_duplication off -r 4 -global_opt off -mt 2 -detail -ir off -pr b -lc auto -power off
 PAR = -ol high -xe n -mt 4
 
 # included or read by the sources, not in the prj

@@ -185,6 +185,19 @@ def fix_wire_reg(outv, extra):
     raise SystemExit('PROCASSWIRE errors left')
 
 
+# modules of the output that keep their names: the top and the replacements of the VHDL / Altera parts
+KEEP_NAMES = ('cart_top', 'eReg_SavestateV', 'dpram')
+
+
+def prefix_modules(outv):
+    """the mappers of MiSTer have the names of those of mmu.v (MMC1, Mapper69...): cart_<name>"""
+    text = open(outv).read()
+    names = [n for n in re.findall(r'^module\s+(\w+)', text, flags=re.M) if n not in KEEP_NAMES]
+    for n in names:
+        text = re.sub(r'^(\s*(?:module\s+)?)%s(?=\s*(?:#|\(|\w+\s*\(|$))' % n, r'\1cart_%s' % n, text, flags=re.M)
+    open(outv, 'w').write(text)
+
+
 def main():
     rtl, listfile, outv = sys.argv[1:4]
     work = sys.argv[4] if len(sys.argv) > 4 else os.path.join(os.path.dirname(os.path.abspath(outv)), 'cart_work')
@@ -205,6 +218,7 @@ def main():
     open(cart, 'w').write('import regs_savestates::*;\n' + edit_cart(open(os.path.join(rtl, 'cart.sv')).read(), keep, mods))
     cmd = ['sv2v', '--top=cart_top', os.path.join(rtl, 'regs_savestates.sv')] + files + [cart, '-w', outv]
     subprocess.run(cmd, check=True)
+    prefix_modules(outv)
     src = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')   # src/ of the core
     here = os.path.join(src, 'rtl', 'cart')
     mem = os.path.join(src, '..', 'modules', 'rtl', 'mem')

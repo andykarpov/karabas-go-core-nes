@@ -1291,162 +1291,6 @@ module Mapper41(input clk, input ce, input reset,
   assign prg_allow = prg_ain[15] && !prg_write;
 endmodule
 
-// #68 - Sunsoft-4 - Game After Burner, and some japanese games. MAX: 128kB PRG, 256kB CHR
-module Mapper68(input clk, input ce, input reset,
-                input [31:0] flags,
-                input [15:0] prg_ain, output [21:0] prg_aout,
-                input prg_read, prg_write,                   // Read / write signals
-                input [7:0] prg_din,
-                output prg_allow,                            // Enable access to memory for the specified operation.
-                input [13:0] chr_ain, output [21:0] chr_aout,
-                output chr_allow,                      // Allow write
-                output vram_a10,                             // Value for A10 address line
-                output vram_ce);                             // True if the address should be routed to the internal 2kB VRAM.
-  reg [6:0] chr_bank_0, chr_bank_1, chr_bank_2, chr_bank_3;
-  reg [6:0] nametable_0, nametable_1;
-  reg [2:0] prg_bank;
-  reg use_chr_rom;
-  reg mirroring;
-  always @(posedge clk) if (reset) begin
-    chr_bank_0 <= 0;
-    chr_bank_1 <= 0;
-    chr_bank_2 <= 0;
-    chr_bank_3 <= 0;
-    nametable_0 <= 0;
-    nametable_1 <= 0;
-    prg_bank <= 0;
-    use_chr_rom <= 0;
-    mirroring <= 0;
-  end else if (ce) begin
-    if (prg_ain[15] && prg_write) begin
-//      $write("REG[%d] <= %X\n", prg_ain[14:12], prg_din);
-      case(prg_ain[14:12])
-      0: chr_bank_0  <= prg_din[6:0]; // $8000-$8FFF: 2kB CHR bank at $0000
-      1: chr_bank_1  <= prg_din[6:0]; // $9000-$9FFF: 2kB CHR bank at $0800
-      2: chr_bank_2  <= prg_din[6:0]; // $A000-$AFFF: 2kB CHR bank at $1000
-      3: chr_bank_3  <= prg_din[6:0]; // $B000-$BFFF: 2kB CHR bank at $1800
-      4: nametable_0 <= prg_din[6:0]; // $C000-$CFFF: 1kB Nametable register 0 at $2000
-      5: nametable_1 <= prg_din[6:0]; // $D000-$DFFF: 1kB Nametable register 1 at $2400
-      6: {use_chr_rom, mirroring} <= {prg_din[4], prg_din[0]};  // $E000-$EFFF: Nametable control
-      7: prg_bank <= prg_din[2:0]; 
-      endcase
-    end
-  end
-  wire [2:0] prgout = (prg_ain[14] ? 3'b111 : prg_bank);
-  assign prg_aout = {5'b00_000, prgout, prg_ain[13:0]};
-  assign prg_allow = prg_ain[15] && !prg_write;
-
-  reg [6:0] chrout;  
-  always begin
-    casez(chr_ain[12:11])
-    0: chrout = chr_bank_0;
-    1: chrout = chr_bank_1;
-    2: chrout = chr_bank_2;
-    3: chrout = chr_bank_3;
-    endcase
-  end
-  assign vram_a10 = mirroring ? chr_ain[11] : chr_ain[10];
-  wire [6:0] nameout = (vram_a10 == 0) ? nametable_0 : nametable_1;
- 
-  assign chr_allow = flags[15];
-  assign chr_aout = (chr_ain[13] == 0) ? {4'b10_00, chrout, chr_ain[10:0]} : {5'b10_001, nameout, chr_ain[9:0]};
-  assign vram_ce = chr_ain[13] && !use_chr_rom;
-
-endmodule
-
-
-
-// 69 - Sunsoft FME-7
-module Mapper69(input clk, input ce, input reset,
-                input [31:0] flags,
-                input [15:0] prg_ain, output [21:0] prg_aout,
-                input prg_read, prg_write,                   // Read / write signals
-                input [7:0] prg_din,
-                output prg_allow,                          // Enable access to memory for the specified operation.
-                input [13:0] chr_ain, output [21:0] chr_aout,
-                output chr_allow,                             // Allow write
-                output reg vram_a10,                          // Value for A10 address line
-                output vram_ce,                               // True if the address should be routed to the internal 2kB VRAM.
-                output reg irq);
-  reg [7:0] chr_bank[0:7];
-  reg [4:0] prg_bank[0:3];
-  reg [1:0] mirroring;
-  reg irq_countdown, irq_trigger;
-  reg [15:0] irq_counter;
-  reg [3:0] addr;
-  reg ram_enable, ram_select;
-  wire [16:0] new_irq_counter = irq_counter - {15'b0, irq_countdown};
-  always @(posedge clk) if (reset) begin
-    chr_bank[0] <= 0;
-    chr_bank[1] <= 0;
-    chr_bank[2] <= 0;
-    chr_bank[3] <= 0;
-    chr_bank[4] <= 0;
-    chr_bank[5] <= 0;
-    chr_bank[6] <= 0;
-    chr_bank[7] <= 0;
-    prg_bank[0] <= 0;
-    prg_bank[1] <= 0;
-    prg_bank[2] <= 0;
-    prg_bank[3] <= 0;
-    mirroring <= 0;
-    irq_countdown <= 0;
-    irq_trigger <= 0;
-    irq_counter <= 0;
-    addr <= 0;
-    ram_enable <= 0;
-    ram_select <= 0;
-    irq <= 0;
-  end else if (ce) begin
-    irq_counter <= new_irq_counter[15:0];
-    if (irq_trigger && new_irq_counter[16]) irq <= 1;
-    if (!irq_trigger) irq <= 0;
-      
-    if (prg_ain[15] & prg_write) begin
-      case (prg_ain[14:13])
-      0: addr <= prg_din[3:0];
-      1: begin
-          case(addr)
-          0,1,2,3,4,5,6,7: chr_bank[addr[2:0]] <= prg_din;
-          8,9,10,11:       prg_bank[addr[1:0]] <= prg_din[4:0];
-          12:              mirroring <= prg_din[1:0];
-          13:              {irq_countdown, irq_trigger} <= {prg_din[7], prg_din[0]};
-          14:              irq_counter[7:0] <= prg_din;
-          15:              irq_counter[15:8] <= prg_din;
-          endcase
-          if (addr == 8) {ram_enable, ram_select} <= prg_din[7:6];
-        end
-      endcase
-    end
-  end
-  always begin
-    casez(mirroring[1:0])
-    2'b00   :   vram_a10 = {chr_ain[10]};    // vertical
-    2'b01   :   vram_a10 = {chr_ain[11]};    // horizontal
-    2'b1?   :   vram_a10 = {mirroring[0]};   // 1 screen lower
-    endcase
-  end
-  reg [4:0] prgout;
-  reg [7:0] chrout;
-  always begin
-    casez(prg_ain[15:13])
-    3'b011:  prgout = prg_bank[0];
-    3'b100:  prgout = prg_bank[1];
-    3'b101:  prgout = prg_bank[2];
-    3'b110:  prgout = prg_bank[3];
-    3'b111:  prgout = 5'b11111;
-    default: prgout = 5'bxxxxx;
-    endcase
-    chrout = chr_bank[chr_ain[12:10]];
-  end
-  wire ram_cs = (prg_ain[15] == 0 && ram_select);
-  assign prg_aout = {1'b0, ram_cs, 2'b00, prgout[4:0], prg_ain[12:0]};
-  assign prg_allow = ram_cs ? ram_enable : !prg_write;
-  assign chr_allow = flags[15];
-  assign chr_aout = {4'b10_00, chrout, chr_ain[9:0]};
-  assign vram_ce = chr_ain[13];
-endmodule
-
 // #71,#232 - Camerica
 module Mapper71(input clk, input ce, input reset,
                 input [31:0] flags,
@@ -1769,16 +1613,6 @@ module MultiMapper(input clk, input ce, input ppu_ce, input reset,
   Mapper66 map66(clk, ce, reset, flags, prg_ain, map66_prg_addr, prg_read, prg_write, prg_din, map66_prg_allow,
                                         chr_ain, map66_chr_addr, map66_chr_allow, map66_vram_a10, map66_vram_ce);
 
-  wire map68_prg_allow, map68_vram_a10, map68_vram_ce, map68_chr_allow;
-  wire [21:0] map68_prg_addr, map68_chr_addr;
-  Mapper68 map68(clk, ce, reset, flags, prg_ain, map68_prg_addr, prg_read, prg_write, prg_din, map68_prg_allow,
-                                        chr_ain, map68_chr_addr, map68_chr_allow, map68_vram_a10, map68_vram_ce);
-
-  wire map69_prg_allow, map69_vram_a10, map69_vram_ce, map69_chr_allow, map69_irq;
-  wire [21:0] map69_prg_addr, map69_chr_addr;
-  Mapper69 map69(clk, ce, reset, flags, prg_ain, map69_prg_addr, prg_read, prg_write, prg_din, map69_prg_allow,
-                                        chr_ain, map69_chr_addr, map69_chr_allow, map69_vram_a10, map69_vram_ce, map69_irq);
-
   wire map71_prg_allow, map71_vram_a10, map71_vram_ce, map71_chr_allow;
   wire [21:0] map71_prg_addr, map71_chr_addr;
   Mapper71 map71(clk, ce, reset, flags, prg_ain, map71_prg_addr, prg_read, prg_write, prg_din, map71_prg_allow,
@@ -1871,8 +1705,6 @@ module MultiMapper(input clk, input ce, input ppu_ce, input reset,
 
     11,
     66: {prg_aout, prg_allow, chr_aout, vram_a10, vram_ce, chr_allow}      = {map66_prg_addr, map66_prg_allow, map66_chr_addr, map66_vram_a10, map66_vram_ce, map66_chr_allow};
-    68: {prg_aout, prg_allow, chr_aout, vram_a10, vram_ce, chr_allow}      = {map68_prg_addr, map68_prg_allow, map68_chr_addr, map68_vram_a10, map68_vram_ce, map68_chr_allow};
-    69: {prg_aout, prg_allow, chr_aout, vram_a10, vram_ce, chr_allow, irq} = {map69_prg_addr, map69_prg_allow, map69_chr_addr, map69_vram_a10, map69_vram_ce, map69_chr_allow, map69_irq};
 
     71,
     232: {prg_aout, prg_allow, chr_aout, vram_a10, vram_ce, chr_allow}     = {map71_prg_addr, map71_prg_allow, map71_chr_addr, map71_vram_a10, map71_vram_ce, map71_chr_allow};

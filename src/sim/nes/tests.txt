@@ -200,8 +200,8 @@ holy-mapperel/testroms/M4_P128K_CR32K.nes 240 hash:540c617d # result 0000
 holy-mapperel/testroms/M4_P128K_CR8K.nes 240 hash:540c617d # result 0000
 holy-mapperel/testroms/M4_P256K_C256K.nes 240 hash:0043bcb5 # result 0000
 holy-mapperel/testroms/M66_P64K_C16K_V.nes 240 hash:92a63b95 # result 0000 (PRG RAM missing on boards that have none)
-holy-mapperel/testroms/M69_P128K_C64K_S8K.nes 240 hash:a042cdc5 # black: the test crashes on FME-7 here
-holy-mapperel/testroms/M69_P128K_C64K_W8K.nes 240 hash:a042cdc5 # black: the test crashes on FME-7 here
+holy-mapperel/testroms/M69_P128K_C64K_S8K.nes 240 hash:a042cdc5 # black: loops in its PRG RAM check (reads back right, no mapper writes after frame 20), with both FME-7 mappers
+holy-mapperel/testroms/M69_P128K_C64K_W8K.nes 240 hash:a042cdc5 # black: loops in its PRG RAM check (reads back right, no mapper writes after frame 20), with both FME-7 mappers
 holy-mapperel/testroms/M78.3_P128K_C64K.nes 240 hash:a042cdc5 # black: mapper not in this core
 holy-mapperel/testroms/M7_P128K.nes 240 hash:c399d25d # result 0000 (PRG RAM missing on boards that have none)
 holy-mapperel/testroms/M7_P128K_CR8K.nes 240 hash:1dbbb26d # result 0000 (PRG RAM missing on boards that have none)

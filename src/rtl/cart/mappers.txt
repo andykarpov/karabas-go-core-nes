@@ -11,3 +11,10 @@ snd_vrc6    # VRC6 sound
 # Namco
 n163        # 19 (163), 210 (175, 340)
 snd_n163    # Namco 163 sound
+
+# Sunsoft
+map67       # 67 (Sunsoft-3), 190
+map68       # 68 (Sunsoft-4)
+map69       # 69 (FME-7, 5A, 5B)
+map89       # 89, 93, 184
+snd_5bm     # Sunsoft 5B sound
