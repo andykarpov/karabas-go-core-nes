@@ -148,6 +148,13 @@ module NES(input clk, input reset, input ce,
            output [1:0] dbgctr
            );
   reg [7:0] from_data_bus;
+  // from_data_bus a clock late for the CPU, the DMA and the DMC, which take it at apu_ce only. Its sources
+  // (memory, PPU, APU, mappers, joypads) change at the edges of ce, every 4th clk, so the clock before
+  // apu_ce has the same value. The register cuts the loop from_data_bus -> CPU ALU -> cpu_addr / cpu_dout
+  // -> from_data_bus, which the timing analysis took as one clock (setup missed by up to 7 ns on the Go).
+  reg [7:0] from_data_bus_q;
+  always @(posedge clk)
+    from_data_bus_q <= from_data_bus;
   wire [7:0] cpu_dout;
   wire odd_or_even; // Is this an odd or even clock cycle?
 
@@ -181,7 +188,7 @@ module NES(input clk, input reset, input ce,
   wire pause_cpu;
   reg apu_irq_delayed;
   reg mapper_irq_delayed;
-  CPU cpu(clk, apu_ce && !pause_cpu, reset, from_data_bus, apu_irq_delayed | mapper_irq_delayed, nmi_active, cpu_dout, cpu_addr, cpu_mr, cpu_mw);
+  CPU cpu(clk, apu_ce && !pause_cpu, reset, from_data_bus_q, apu_irq_delayed | mapper_irq_delayed, nmi_active, cpu_dout, cpu_addr, cpu_mr, cpu_mw);
 
   // -- DMA
   wire [15:0] dma_aout;
@@ -203,7 +210,7 @@ module NES(input clk, input reset, input ce,
                     apu_dma_request,                // DMC Trigger
                     cpu_mr,                         // CPU in a read cycle?
                     cpu_dout,                       // Data from cpu
-                    from_data_bus,                  // Data from RAM etc.
+                    from_data_bus_q,                // Data from RAM etc.
                     apu_dma_addr,                   // DMC addr
                     dma_aout,
                     dma_aout_enable, 
@@ -225,7 +232,7 @@ module NES(input clk, input reset, input ce,
           apu_dma_request,
           apu_dma_ack,
           apu_dma_addr,
-          from_data_bus,
+          from_data_bus_q,
           odd_or_even,
           apu_irq);
 

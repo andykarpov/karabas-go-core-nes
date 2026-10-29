@@ -21,7 +21,7 @@
 | **25** | Konami VRC4b, VRC4d | — | *Gradius II*, *Bio Miracle Bokutte Upa*, *Ganbare Goemon 2* |
 | **26** | Konami VRC6b | **Синтез VRC6 (2 пульса + пила)** | *Madara*, *Esper Dream 2* |
 | **27** | Konami VRC4 (World Hero) | — | *World Hero* |
-| **30** | UNROM-512 | — | *Micro Mages*, *Lizard*, *Black Box Challenge*, современные homebrew-игры |
+| **30** | UNROM-512 | — | *Micro Mages*, *Black Box Challenge*, современные homebrew-игры |
 | **32** | Irem G-101 | — | *Image Fight*, *Major League*, *Kaiketsu Yanchamaru 2* |
 | **65** | Irem H-3001 | — | *Spartan X 2*, *Daiku no Gen-san 2*, *Kaitei Daisensou* |
 | **67** | Sunsoft-3 | — | *Fantasy Zone 2* |
@@ -37,7 +37,7 @@
 | **111** | GTROM | — | *Cheapocabra*, *Spook-o'-Tron* |
 | **152** | Irem 74HC161/32 (вариант) | — | *Saint Seiya: Ougon Densetsu* |
 | **184** | Sunsoft дискретный | — | *Wing of Madoola* |
-| **190** | Sunsoft-3 (вариант) | — | *Magic John (bootleg)* |
+| **190** | Magic Kid GooGoo (в модуле Sunsoft-3 MiSTer) | — | *Magic Kid GooGoo* |
 | **210** | Namco 175, 340 | — | *Chibi Maruko-chan*, *Famista '91-'92*, *Splatterhouse: Wanpaku Graffiti* |
 
 ---

@@ -1,4 +1,4 @@
-k# intermediate build files
+# intermediate build files
 *.bgn
 *.bit
 *.bld
@@ -73,3 +73,6 @@ make_core.py
 !src/karabas_*.prj
 !src/karabas_*.xst
 !src/karabas_*.ut
+
+# the SV given to sv2v by src/tools/upstream/gen_cart.py
+src/rtl/cart/cart_work/
