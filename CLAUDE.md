@@ -22,6 +22,8 @@ The board modules (MCU link, memories, clocks, DACs) come from the git submodule
 
 - The three ucf have the same timing block (the end of each file): PERIOD on CLK_50MHZ, derived onto the PLL outputs (`pll_clk<0>` = clk 21.51 MHz, `pll_clk<1>` = clk_vga 25.0 MHz) and the HDMI DCM (5x clk_vga and its inverse); `TS_CLK_MCU` 32 MHz; FROM-TO DATAPATHONLY on the asynchronous crossings (clk <-> clk_vga one clk_vga period, MCU_SCK <-> clk one SCK period); the SRAM budget (20 ns out + 10 ns tAA + 20 ns in of the three clk of a MemoryController access). Each exception is explained there; do not TIG paths that are real.
 - A signal of clk that the HDMI serialisers use (the encoder select `dvi_only`) goes through `kg_sync` into clk_vga first: from clk it reaches the 5x clock with the phase of two unrelated dividers of one VCO.
+- The CPU, the DMA and the DMC take `from_data_bus_q` of `nes.v` (`from_data_bus` a clk late, the same value at `apu_ce`): straight, the loop `from_data_bus` -> CPU ALU -> `cpu_addr` / `cpu_dout` -> `from_data_bus` (address decoding, mapper outputs) is one clk for the analysis, and it grows with each mapper (the Go missed by 7 ns at 96 % of the slices). Keep new consumers of the bus at `apu_ce` on the registered one.
+- `MAP_T_<board>` of the Makefile is the cost table of map (Go / Mini 2, Mini G 1, as they were built for the release).
 
 ## Simulation
 
