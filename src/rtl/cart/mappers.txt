@@ -18,3 +18,13 @@ map68       # 68 (Sunsoft-4)
 map69       # 69 (FME-7, 5A, 5B)
 map89       # 89, 93, 184
 snd_5bm     # Sunsoft 5B sound
+
+# Homebrew & Discrete
+map30       # 30 (UNROM-512)
+map111      # 111 (GTROM)
+map78       # 78, 70, 152, 81 (Irem 74HC161/32)
+
+# Irem & Jaleco
+map32       # 32 (Irem G-101)
+map65       # 65 (Irem H-3001)
+map18       # 18 (Jaleco SS88006)

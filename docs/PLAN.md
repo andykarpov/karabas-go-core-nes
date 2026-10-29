@@ -158,6 +158,8 @@
 
 *Группа Sunsoft и оптимизация площади (2026-10-28)*: Sunsoft-3 (67, 190), Sunsoft-4 (68), FME-7 / Sunsoft 5A/5B (69) + звук 5B, Sunsoft дискретный (89, 93, 184). Из `MultiMapper` (`mmu.v`) удалены дубликаты мапперов 68 и 69. В `Makefile` включена авто-упаковка LUT (`MAP` с опцией `-lc auto` вместо `-lc off`). Префикс `cart_` для модулей `cart.v` в `gen_cart.py`. Mini G: 9 834 LUT (65 %), 3 409 слайсов (90 % из 3 758, запас 349 слайсов — было 99 %!), тайминги выполнены (Timing Score: 0).
 
+*Группа дискретных и homebrew мапперов (2026-10-29)*: Mapper 30 (UNROM-512), Mapper 111 (GTROM), Mapper 78 (Irem 74HC161/32, 70, 152), Mapper 32 (Irem G-101), Mapper 65 (Irem H-3001), Mapper 18 (Jaleco SS88006). В `Makefile` увеличены усилия плейсера/роутера: `MAP`: `-xt 3`, `PAR`: `-xe c`. Mini G: 9 997 LUT (66 %, всего +163 LUT), 3 598 слайсов (95 % из 3 758, запас 160 слайсов), тайминги полностью выполнены (Timing Score: 0, 46.055 нс / 46.486 нс). Тесты: `run_tests.sh -q` (54/54 ok), `holy-mapperel` (40/40 ok), `run_tests.sh -g` (31/31 ok, Black Box Challenge m30 и holy-mapperel M78 работают).
+
 **Бюджет LUT / слайсов**: после каждой группы — запись здесь; окончательный набор (что оставить в `mappers.txt`) выбирать по охвату библиотеки, когда станет тесно (VRC7 / OPLL и MMC5 — самые дорогие).
 
 ### 3.3. Исправления существующих мапперов
@@ -171,15 +173,15 @@
 1. *Сделано*: Konami VRC2 / VRC4 (21, 22, 23, 25), VRC6 (24, 26) + звук, VRC1 (75), VRC3 (73).
 2. *Сделано*: Namco 163 / 175 / 340 (19, 210) + звук N163.
 3. *Сделано*: Sunsoft: 5B-звук для 69 (Gimmick!), Sunsoft-3 (67, 190), 68, 69, 89, 93, 184.
-4. **Homebrew / популярные flash**: Mapper 30 (UNROM-512 — Micro Mages, Lizard, десятки современных игр; лёгкая логика, в Ф4 flash-сейвы), Mapper 111 (GTROM).
-5. **Bandai FCG** (16, 153, 159 — Dragon Ball Z, SD Gundam) — с I2C EEPROM 24C01/02 (Ф4).
-6. **Jaleco / Irem / Taito**:
+4. *Сделано*: **Homebrew / популярные flash**: Mapper 30 (UNROM-512 — Micro Mages, Lizard, десятки современных игр), Mapper 111 (GTROM).
+5. *Сделано (частично)*: **Jaleco / Irem**:
    - Irem G-101 (32: Image Fight, Kaiketsu Yanchamaru 2-3);
-   - Taito TC0190/0350 (33, 48: Don Doko Don, Flintstones);
    - Jaleco SS88006 (18: Pizza Pop!);
    - Irem H-3001 / 74HC161 (65, 78: Spartan X 2, Holy Diver).
-7. **Пиратские хиты 90-х**: JY Company (90, 209, 211 — Mortal Kombat 2, Tekken 2, Street Fighter II).
-8. *Не переносятся / низкий приоритет из-за бюджета*: VRC7 (85, дорогой FM-синтезатор OPLL), FDS (20, дисковод/BIOS), аркадные Vs (99), одноигровки (77, 107, 218, 246), азиатские нелицензионные демейки (Sachen, Daou, Nanjing).
+6. **Bandai FCG** (16, 153, 159 — Dragon Ball Z, SD Gundam) — с I2C EEPROM 24C01/02 (Ф4).
+7. **Taito**: TC0190/0350 (33, 48: Don Doko Don, Flintstones).
+8. **Пиратские хиты 90-х**: JY Company (90, 209, 211 — Mortal Kombat 2, Tekken 2, Street Fighter II).
+9. *Не переносятся / низкий приоритет из-за бюджета*: VRC7 (85, дорогой FM-синтезатор OPLL), FDS (20, дисковод/BIOS), аркадные Vs (99), одноигровки (77, 107, 218, 246), азиатские нелицензионные демейки (Sachen, Daou, Nanjing).
 
 ## Ф4. EEPROM и flash
 

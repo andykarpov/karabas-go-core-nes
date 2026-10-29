@@ -3136,6 +3136,294 @@ module cart_vrc6sound (
 	);
 	assign SaveStateBus_Dout = (enable ? SaveStateBus_Dout_active : 64'h0000000000000000);
 endmodule
+module cart_Mapper30 (
+	clk,
+	ce,
+	enable,
+	flags,
+	prg_ain,
+	prg_aout_b,
+	prg_read,
+	prg_write,
+	prg_din,
+	prg_dout_b,
+	prg_allow_b,
+	chr_ain,
+	chr_aout_b,
+	chr_read,
+	chr_allow_b,
+	vram_a10_b,
+	vram_ce_b,
+	irq_b,
+	audio_in,
+	audio_b,
+	flags_out_b,
+	SaveStateBus_Din,
+	SaveStateBus_Adr,
+	SaveStateBus_wren,
+	SaveStateBus_rst,
+	SaveStateBus_load,
+	SaveStateBus_Dout
+);
+	input clk;
+	input ce;
+	input enable;
+	input [31:0] flags;
+	input [15:0] prg_ain;
+	output wire [21:0] prg_aout_b;
+	input prg_read;
+	input prg_write;
+	input [7:0] prg_din;
+	output wire [7:0] prg_dout_b;
+	output wire prg_allow_b;
+	input [13:0] chr_ain;
+	output wire [21:0] chr_aout_b;
+	input chr_read;
+	output wire chr_allow_b;
+	output wire vram_a10_b;
+	output wire vram_ce_b;
+	output wire irq_b;
+	input [15:0] audio_in;
+	output wire [15:0] audio_b;
+	output wire [15:0] flags_out_b;
+	input [63:0] SaveStateBus_Din;
+	input [9:0] SaveStateBus_Adr;
+	input SaveStateBus_wren;
+	input SaveStateBus_rst;
+	input SaveStateBus_load;
+	output wire [63:0] SaveStateBus_Dout;
+	wire [21:0] prg_aout;
+	assign prg_aout_b = (enable ? prg_aout : 22'h000000);
+	assign prg_dout_b = (enable ? 8'hff : {8 {1'b1}});
+	wire prg_allow;
+	assign prg_allow_b = (enable ? prg_allow : 1'h0);
+	wire [21:0] chr_aout;
+	assign chr_aout_b = (enable ? chr_aout : 22'h000000);
+	wire chr_allow;
+	assign chr_allow_b = (enable ? chr_allow : 1'h0);
+	reg vram_a10;
+	assign vram_a10_b = (enable ? vram_a10 : 1'h0);
+	wire vram_ce;
+	assign vram_ce_b = (enable ? vram_ce : 1'h0);
+	assign irq_b = (enable ? 1'b0 : 1'h0);
+	wire battery = flags[25];
+	wire [15:0] flags_out = {10'h000, battery, 5'b01000};
+	assign flags_out_b = (enable ? flags_out : 16'h0000);
+	assign audio_b = (enable ? {1'b0, audio_in[15:1]} : 16'h0000);
+	reg [4:0] prgbank;
+	reg [1:0] chrbank;
+	reg nametable;
+	wire four_screen = flags[16] && flags[14];
+	reg [1:0] write_state;
+	localparam [1:0] STATE_IDLE = 2'b00;
+	localparam [1:0] STATE_UNLOCK1 = 2'b01;
+	localparam [1:0] STATE_UNLOCK2 = 2'b10;
+	localparam [1:0] STATE_CMD = 2'b11;
+	wire [14:0] prg_addr_15bit = {(prg_ain[15:14] == 2'b11 ? 1'b1 : prgbank[0]), prg_ain[13:0]};
+	wire unlock1_match = prg_addr_15bit == 15'h5555;
+	wire unlock2_match = prg_addr_15bit == 15'h2aaa;
+	wire flash_write = ((write_state == STATE_CMD) && (prg_ain[15:14] == 2'b10)) && prg_write;
+	wire [63:0] SS_MAP1;
+	always @(posedge clk)
+		if (~enable) begin
+			prgbank <= 0;
+			chrbank <= 0;
+			nametable <= 0;
+			write_state <= STATE_IDLE;
+		end
+		else if (SaveStateBus_load) begin
+			prgbank <= SS_MAP1[4:0];
+			chrbank <= SS_MAP1[6:5];
+			nametable <= SS_MAP1[7];
+			write_state <= SS_MAP1[9:8];
+		end
+		else if (ce) begin
+			if (prg_ain[15] && prg_write) begin
+				if ((battery ? prg_ain[14] : 1'b1))
+					{nametable, chrbank, prgbank} <= prg_din[7:0];
+				else if (battery && !prg_ain[14])
+					case (write_state)
+						STATE_IDLE: write_state <= (unlock1_match && (prg_din == 8'haa) ? STATE_UNLOCK1 : STATE_IDLE);
+						STATE_UNLOCK1: write_state <= (unlock2_match && (prg_din == 8'h55) ? STATE_UNLOCK2 : STATE_IDLE);
+						STATE_UNLOCK2: write_state <= (unlock1_match && (prg_din == 8'ha0) ? STATE_CMD : STATE_IDLE);
+						STATE_CMD: write_state <= STATE_IDLE;
+					endcase
+			end
+		end
+	wire [63:0] SS_MAP1_BACK;
+	assign SS_MAP1_BACK[4:0] = prgbank;
+	assign SS_MAP1_BACK[6:5] = chrbank;
+	assign SS_MAP1_BACK[7] = nametable;
+	assign SS_MAP1_BACK[9:8] = write_state;
+	assign SS_MAP1_BACK[63:10] = 54'b000000000000000000000000000000000000000000000000000000;
+	always @(*)
+		casez ({flags[16], flags[14]})
+			3'b000: vram_a10 = chr_ain[11];
+			3'b001: vram_a10 = chr_ain[10];
+			3'b010: vram_a10 = nametable;
+			default: vram_a10 = chr_ain[10];
+		endcase
+	assign prg_aout = {3'b000, (prg_ain[15:14] == 2'b11 ? 5'b11111 : prgbank), prg_ain[13:0]};
+	assign prg_allow = prg_ain[15] && (!prg_write || flash_write);
+	assign chr_allow = flags[15];
+	assign chr_aout = {(flags[15] ? 7'b1111111 : 7'b1000000), (four_screen && chr_ain[13] ? 2'b11 : chrbank), chr_ain[12:0]};
+	assign vram_ce = chr_ain[13] && !four_screen;
+	wire [63:0] SaveStateBus_Dout_active;
+	localparam [9:0] regs_savestates_SSREG_INDEX_MAP1 = 10'd32;
+	eReg_SavestateV #(
+		regs_savestates_SSREG_INDEX_MAP1,
+		64'h0000000000000000
+	) iREG_SAVESTATE_MAP1(
+		clk,
+		SaveStateBus_Din,
+		SaveStateBus_Adr,
+		SaveStateBus_wren,
+		SaveStateBus_rst,
+		SaveStateBus_Dout_active,
+		SS_MAP1_BACK,
+		SS_MAP1
+	);
+	assign SaveStateBus_Dout = (enable ? SaveStateBus_Dout_active : 64'h0000000000000000);
+endmodule
+module cart_Mapper78 (
+	clk,
+	ce,
+	enable,
+	flags,
+	prg_ain,
+	prg_aout_b,
+	prg_read,
+	prg_write,
+	prg_din,
+	prg_dout_b,
+	prg_allow_b,
+	chr_ain,
+	chr_aout_b,
+	chr_read,
+	chr_allow_b,
+	vram_a10_b,
+	vram_ce_b,
+	irq_b,
+	audio_in,
+	audio_b,
+	flags_out_b,
+	SaveStateBus_Din,
+	SaveStateBus_Adr,
+	SaveStateBus_wren,
+	SaveStateBus_rst,
+	SaveStateBus_load,
+	SaveStateBus_Dout
+);
+	input clk;
+	input ce;
+	input enable;
+	input [31:0] flags;
+	input [15:0] prg_ain;
+	output wire [21:0] prg_aout_b;
+	input prg_read;
+	input prg_write;
+	input [7:0] prg_din;
+	output wire [7:0] prg_dout_b;
+	output wire prg_allow_b;
+	input [13:0] chr_ain;
+	output wire [21:0] chr_aout_b;
+	input chr_read;
+	output wire chr_allow_b;
+	output wire vram_a10_b;
+	output wire vram_ce_b;
+	output wire irq_b;
+	input [15:0] audio_in;
+	output wire [15:0] audio_b;
+	output wire [15:0] flags_out_b;
+	input [63:0] SaveStateBus_Din;
+	input [9:0] SaveStateBus_Adr;
+	input SaveStateBus_wren;
+	input SaveStateBus_rst;
+	input SaveStateBus_load;
+	output wire [63:0] SaveStateBus_Dout;
+	wire [21:0] prg_aout;
+	assign prg_aout_b = (enable ? prg_aout : 22'h000000);
+	assign prg_dout_b = (enable ? 8'hff : {8 {1'b1}});
+	wire prg_allow;
+	assign prg_allow_b = (enable ? prg_allow : 1'h0);
+	wire [21:0] chr_aout;
+	assign chr_aout_b = (enable ? chr_aout : 22'h000000);
+	wire chr_allow;
+	assign chr_allow_b = (enable ? chr_allow : 1'h0);
+	wire vram_a10;
+	assign vram_a10_b = (enable ? vram_a10 : 1'h0);
+	wire vram_ce;
+	assign vram_ce_b = (enable ? vram_ce : 1'h0);
+	assign irq_b = (enable ? 1'b0 : 1'h0);
+	reg [15:0] flags_out = 16'h0008;
+	assign flags_out_b = (enable ? flags_out : 16'h0000);
+	assign audio_b = (enable ? {1'b0, audio_in[15:1]} : 16'h0000);
+	reg [3:0] prg_bank;
+	reg [3:0] chr_bank;
+	reg mirroring;
+	wire vmirror;
+	wire mapper70 = flags[7:0] == 70;
+	wire mapper81 = flags[7:0] == 81;
+	wire mapper152 = flags[7:0] == 152;
+	wire onescreen = (flags[22:21] == 1) | mapper152;
+	wire [63:0] SS_MAP1;
+	always @(posedge clk)
+		if (~enable) begin
+			prg_bank <= 0;
+			chr_bank <= 0;
+			mirroring <= 0;
+		end
+		else if (SaveStateBus_load) begin
+			prg_bank <= SS_MAP1[3:0];
+			chr_bank <= SS_MAP1[7:4];
+			mirroring <= SS_MAP1[8];
+		end
+		else if (ce) begin
+			if ((prg_ain[15] == 1'b1) && prg_write)
+				case (flags[7:0])
+					70: {prg_bank, chr_bank} <= prg_din;
+					78: {chr_bank, mirroring, prg_bank[2:0]} <= prg_din;
+					81: {prg_bank[1:0], chr_bank[1:0]} <= prg_din[3:0];
+					152: {mirroring, prg_bank[2:0], chr_bank} <= prg_din;
+				endcase
+		end
+	wire [63:0] SS_MAP1_BACK;
+	assign SS_MAP1_BACK[3:0] = prg_bank;
+	assign SS_MAP1_BACK[7:4] = chr_bank;
+	assign SS_MAP1_BACK[8] = mirroring;
+	assign SS_MAP1_BACK[63:9] = 55'b0000000000000000000000000000000000000000000000000000000;
+	assign prg_aout = {4'b0000, (prg_ain[14] ? 4'b1111 : prg_bank), prg_ain[13:0]};
+	assign prg_allow = prg_ain[15] && !prg_write;
+	assign chr_allow = flags[15];
+	assign chr_aout = {5'b10000, chr_bank, chr_ain[12:0]};
+	assign vram_ce = chr_ain[13];
+	assign vmirror = (mapper70 || mapper81 ? flags[14] : mirroring);
+	reg vram_a10_t;
+	always @(*)
+		case ({onescreen, vmirror})
+			2'b00: vram_a10_t = chr_ain[11];
+			2'b01: vram_a10_t = chr_ain[10];
+			2'b10: vram_a10_t = 0;
+			2'b11: vram_a10_t = 1;
+		endcase
+	assign vram_a10 = vram_a10_t;
+	wire [63:0] SaveStateBus_Dout_active;
+	localparam [9:0] regs_savestates_SSREG_INDEX_MAP1 = 10'd32;
+	eReg_SavestateV #(
+		regs_savestates_SSREG_INDEX_MAP1,
+		64'h0000000000000000
+	) iREG_SAVESTATE_MAP1(
+		clk,
+		SaveStateBus_Din,
+		SaveStateBus_Adr,
+		SaveStateBus_wren,
+		SaveStateBus_rst,
+		SaveStateBus_Dout_active,
+		SS_MAP1_BACK,
+		SS_MAP1
+	);
+	assign SaveStateBus_Dout = (enable ? SaveStateBus_Dout_active : 64'h0000000000000000);
+endmodule
 module cart_Mapper89 (
 	clk,
 	ce,
@@ -3268,6 +3556,901 @@ module cart_Mapper89 (
 	assign prg_allow = prg_ain[15] && !prg_write;
 	assign chr_allow = flags[15];
 	assign chr_aout = {5'b10000, chr_temp, chr_ain[11:0]};
+	wire [63:0] SaveStateBus_Dout_active;
+	localparam [9:0] regs_savestates_SSREG_INDEX_MAP1 = 10'd32;
+	eReg_SavestateV #(
+		regs_savestates_SSREG_INDEX_MAP1,
+		64'h0000000000000000
+	) iREG_SAVESTATE_MAP1(
+		clk,
+		SaveStateBus_Din,
+		SaveStateBus_Adr,
+		SaveStateBus_wren,
+		SaveStateBus_rst,
+		SaveStateBus_Dout_active,
+		SS_MAP1_BACK,
+		SS_MAP1
+	);
+	assign SaveStateBus_Dout = (enable ? SaveStateBus_Dout_active : 64'h0000000000000000);
+endmodule
+module cart_Mapper18 (
+	clk,
+	ce,
+	enable,
+	flags,
+	prg_ain,
+	prg_aout_b,
+	prg_read,
+	prg_write,
+	prg_din,
+	prg_dout_b,
+	prg_allow_b,
+	chr_ain,
+	chr_aout_b,
+	chr_read,
+	chr_allow_b,
+	vram_a10_b,
+	vram_ce_b,
+	irq_b,
+	audio_in,
+	audio_b,
+	flags_out_b,
+	SaveStateBus_Din,
+	SaveStateBus_Adr,
+	SaveStateBus_wren,
+	SaveStateBus_rst,
+	SaveStateBus_load,
+	SaveStateBus_Dout
+);
+	input clk;
+	input ce;
+	input enable;
+	input [31:0] flags;
+	input [15:0] prg_ain;
+	output wire [21:0] prg_aout_b;
+	input prg_read;
+	input prg_write;
+	input [7:0] prg_din;
+	output wire [7:0] prg_dout_b;
+	output wire prg_allow_b;
+	input [13:0] chr_ain;
+	output wire [21:0] chr_aout_b;
+	input chr_read;
+	output wire chr_allow_b;
+	output wire vram_a10_b;
+	output wire vram_ce_b;
+	output wire irq_b;
+	input [15:0] audio_in;
+	output wire [15:0] audio_b;
+	output wire [15:0] flags_out_b;
+	input [63:0] SaveStateBus_Din;
+	input [9:0] SaveStateBus_Adr;
+	input SaveStateBus_wren;
+	input SaveStateBus_rst;
+	input SaveStateBus_load;
+	output wire [63:0] SaveStateBus_Dout;
+	wire [21:0] prg_aout;
+	assign prg_aout_b = (enable ? prg_aout : 22'h000000);
+	wire [7:0] prg_dout;
+	assign prg_dout_b = (enable ? prg_dout : {8 {1'b1}});
+	wire prg_allow;
+	assign prg_allow_b = (enable ? prg_allow : 1'h0);
+	wire [21:0] chr_aout;
+	assign chr_aout_b = (enable ? chr_aout : 22'h000000);
+	wire chr_allow;
+	assign chr_allow_b = (enable ? chr_allow : 1'h0);
+	reg vram_a10;
+	assign vram_a10_b = (enable ? vram_a10 : 1'h0);
+	wire vram_ce;
+	assign vram_ce_b = (enable ? vram_ce : 1'h0);
+	reg irq;
+	assign irq_b = (enable ? irq : 1'h0);
+	reg [15:0] flags_out = 16'h0008;
+	assign flags_out_b = (enable ? flags_out : 16'h0000);
+	assign audio_b = (enable ? {1'b0, audio_in[15:1]} : 16'h0000);
+	reg [7:0] prg_bank_0;
+	reg [7:0] prg_bank_1;
+	reg [7:0] prg_bank_2;
+	reg [7:0] chr_bank_0;
+	reg [7:0] chr_bank_1;
+	reg [7:0] chr_bank_2;
+	reg [7:0] chr_bank_3;
+	reg [7:0] chr_bank_4;
+	reg [7:0] chr_bank_5;
+	reg [7:0] chr_bank_6;
+	reg [7:0] chr_bank_7;
+	reg [1:0] mirroring;
+	reg irq_ack;
+	reg [3:0] irq_enable;
+	reg [15:0] irq_reload;
+	reg [15:0] irq_counter;
+	reg [1:0] ram_enable;
+	wire [63:0] SS_MAP1;
+	wire [63:0] SS_MAP2;
+	wire [63:0] SS_MAP3;
+	always @(posedge clk)
+		if (~enable) begin
+			prg_bank_0 <= 8'hff;
+			prg_bank_1 <= 8'hff;
+			prg_bank_2 <= 8'hff;
+			chr_bank_0 <= 0;
+			chr_bank_1 <= 0;
+			chr_bank_2 <= 0;
+			chr_bank_3 <= 0;
+			chr_bank_4 <= 0;
+			chr_bank_5 <= 0;
+			chr_bank_6 <= 0;
+			chr_bank_7 <= 0;
+			mirroring <= 0;
+			irq_reload <= 0;
+			irq_counter <= 0;
+			irq_enable <= 4'h0;
+		end
+		else if (SaveStateBus_load) begin
+			chr_bank_0 <= SS_MAP1[7:0];
+			chr_bank_1 <= SS_MAP1[15:8];
+			chr_bank_2 <= SS_MAP1[23:16];
+			chr_bank_3 <= SS_MAP1[31:24];
+			chr_bank_4 <= SS_MAP1[39:32];
+			chr_bank_5 <= SS_MAP1[47:40];
+			chr_bank_6 <= SS_MAP1[55:48];
+			chr_bank_7 <= SS_MAP1[63:56];
+			prg_bank_0 <= SS_MAP2[7:0];
+			prg_bank_1 <= SS_MAP2[15:8];
+			prg_bank_2 <= SS_MAP2[23:16];
+			irq_reload <= SS_MAP2[39:24];
+			irq_counter <= SS_MAP2[55:40];
+			irq_enable <= SS_MAP2[59:56];
+			irq <= SS_MAP2[60];
+			irq_ack <= SS_MAP2[61];
+			mirroring <= SS_MAP2[63:62];
+			ram_enable <= SS_MAP3[1:0];
+		end
+		else if (ce) begin
+			irq_ack <= 1'b0;
+			if (irq_enable[0]) begin
+				irq_counter[3:0] <= irq_counter[3:0] - 4'd1;
+				if (irq_counter[3:0] == 4'h0) begin
+					if (irq_enable[3])
+						irq <= 1'b1;
+					else begin
+						irq_counter[7:4] <= irq_counter[7:4] - 4'd1;
+						if (irq_counter[7:4] == 4'h0) begin
+							if (irq_enable[2])
+								irq <= 1'b1;
+							else begin
+								irq_counter[11:8] <= irq_counter[11:8] - 4'd1;
+								if (irq_counter[11:8] == 4'h0) begin
+									if (irq_enable[1])
+										irq <= 1'b1;
+									else begin
+										irq_counter[15:12] <= irq_counter[15:12] - 4'd1;
+										if (irq_counter[15:12] == 4'h0)
+											irq <= 1'b1;
+									end
+								end
+							end
+						end
+					end
+				end
+			end
+			if (prg_write) begin
+				if (prg_ain[15])
+					case ({prg_ain[14:12], prg_ain[1:0]})
+						5'b00000: prg_bank_0[3:0] <= prg_din[3:0];
+						5'b00001: prg_bank_0[7:4] <= prg_din[3:0];
+						5'b00010: prg_bank_1[3:0] <= prg_din[3:0];
+						5'b00011: prg_bank_1[7:4] <= prg_din[3:0];
+						5'b00100: prg_bank_2[3:0] <= prg_din[3:0];
+						5'b00101: prg_bank_2[7:4] <= prg_din[3:0];
+						5'b00110: ram_enable <= prg_din[1:0];
+						5'b01000: chr_bank_0[3:0] <= prg_din[3:0];
+						5'b01001: chr_bank_0[7:4] <= prg_din[3:0];
+						5'b01010: chr_bank_1[3:0] <= prg_din[3:0];
+						5'b01011: chr_bank_1[7:4] <= prg_din[3:0];
+						5'b01100: chr_bank_2[3:0] <= prg_din[3:0];
+						5'b01101: chr_bank_2[7:4] <= prg_din[3:0];
+						5'b01110: chr_bank_3[3:0] <= prg_din[3:0];
+						5'b01111: chr_bank_3[7:4] <= prg_din[3:0];
+						5'b10000: chr_bank_4[3:0] <= prg_din[3:0];
+						5'b10001: chr_bank_4[7:4] <= prg_din[3:0];
+						5'b10010: chr_bank_5[3:0] <= prg_din[3:0];
+						5'b10011: chr_bank_5[7:4] <= prg_din[3:0];
+						5'b10100: chr_bank_6[3:0] <= prg_din[3:0];
+						5'b10101: chr_bank_6[7:4] <= prg_din[3:0];
+						5'b10110: chr_bank_7[3:0] <= prg_din[3:0];
+						5'b10111: chr_bank_7[7:4] <= prg_din[3:0];
+						5'b11000: irq_reload[3:0] <= prg_din[3:0];
+						5'b11001: irq_reload[7:4] <= prg_din[3:0];
+						5'b11010: irq_reload[11:8] <= prg_din[3:0];
+						5'b11011: irq_reload[15:12] <= prg_din[3:0];
+						5'b11100: {irq_ack, irq_counter} <= {1'b1, irq_reload};
+						5'b11101: {irq_ack, irq_enable} <= {1'b1, prg_din[3:0]};
+						5'b11110: mirroring <= prg_din[1:0];
+					endcase
+			end
+			if (irq_ack)
+				irq <= 1'b0;
+		end
+	wire [63:0] SS_MAP1_BACK;
+	assign SS_MAP1_BACK[7:0] = chr_bank_0;
+	assign SS_MAP1_BACK[15:8] = chr_bank_1;
+	assign SS_MAP1_BACK[23:16] = chr_bank_2;
+	assign SS_MAP1_BACK[31:24] = chr_bank_3;
+	assign SS_MAP1_BACK[39:32] = chr_bank_4;
+	assign SS_MAP1_BACK[47:40] = chr_bank_5;
+	assign SS_MAP1_BACK[55:48] = chr_bank_6;
+	assign SS_MAP1_BACK[63:56] = chr_bank_7;
+	wire [63:0] SS_MAP2_BACK;
+	assign SS_MAP2_BACK[7:0] = prg_bank_0;
+	assign SS_MAP2_BACK[15:8] = prg_bank_1;
+	assign SS_MAP2_BACK[23:16] = prg_bank_2;
+	assign SS_MAP2_BACK[39:24] = irq_reload;
+	assign SS_MAP2_BACK[55:40] = irq_counter;
+	assign SS_MAP2_BACK[59:56] = irq_enable;
+	assign SS_MAP2_BACK[60] = irq;
+	assign SS_MAP2_BACK[61] = irq_ack;
+	assign SS_MAP2_BACK[63:62] = mirroring;
+	wire [63:0] SS_MAP3_BACK;
+	assign SS_MAP3_BACK[1:0] = ram_enable;
+	assign SS_MAP3_BACK[63:2] = 62'b00000000000000000000000000000000000000000000000000000000000000;
+	always @(*)
+		casez (mirroring[1:0])
+			2'b00: vram_a10 = {chr_ain[11]};
+			2'b01: vram_a10 = {chr_ain[10]};
+			2'b1z: vram_a10 = {mirroring[0]};
+		endcase
+	reg [7:0] prgsel;
+	always @(*)
+		case (prg_ain[14:13])
+			2'b00: prgsel = prg_bank_0;
+			2'b01: prgsel = prg_bank_1;
+			2'b10: prgsel = prg_bank_2;
+			2'b11: prgsel = 8'hff;
+		endcase
+	reg [7:0] chrsel;
+	always @(*)
+		casez (chr_ain[12:10])
+			0: chrsel = chr_bank_0;
+			1: chrsel = chr_bank_1;
+			2: chrsel = chr_bank_2;
+			3: chrsel = chr_bank_3;
+			4: chrsel = chr_bank_4;
+			5: chrsel = chr_bank_5;
+			6: chrsel = chr_bank_6;
+			7: chrsel = chr_bank_7;
+		endcase
+	assign chr_aout = {4'b1000, chrsel, chr_ain[9:0]};
+	wire [21:0] prg_aout_tmp = {2'b00, prgsel[6:0], prg_ain[12:0]};
+	wire prg_is_ram = (prg_ain >= 'h6000) && (prg_ain < 'h8000);
+	wire [21:0] prg_ram = {9'b111100000, prg_ain[12:0]};
+	assign prg_aout = (prg_is_ram ? prg_ram : prg_aout_tmp);
+	assign prg_dout = 8'hff;
+	assign prg_allow = (prg_ain[15] && !prg_write) || ((prg_is_ram && ram_enable[0]) && (ram_enable[1] || !prg_write));
+	assign chr_allow = flags[15];
+	assign vram_ce = chr_ain[13];
+	localparam SAVESTATE_MODULES = 3;
+	wire [63:0] SaveStateBus_wired_or [0:2];
+	wire [63:0] SaveStateBus_Dout_active = (SaveStateBus_wired_or[0] | SaveStateBus_wired_or[1]) | SaveStateBus_wired_or[2];
+	localparam [9:0] regs_savestates_SSREG_INDEX_MAP1 = 10'd32;
+	eReg_SavestateV #(
+		regs_savestates_SSREG_INDEX_MAP1,
+		64'h0000000000000000
+	) iREG_SAVESTATE_MAP1(
+		clk,
+		SaveStateBus_Din,
+		SaveStateBus_Adr,
+		SaveStateBus_wren,
+		SaveStateBus_rst,
+		SaveStateBus_wired_or[0],
+		SS_MAP1_BACK,
+		SS_MAP1
+	);
+	localparam [9:0] regs_savestates_SSREG_INDEX_MAP2 = 10'd33;
+	eReg_SavestateV #(
+		regs_savestates_SSREG_INDEX_MAP2,
+		64'h0000000000000000
+	) iREG_SAVESTATE_MAP2(
+		clk,
+		SaveStateBus_Din,
+		SaveStateBus_Adr,
+		SaveStateBus_wren,
+		SaveStateBus_rst,
+		SaveStateBus_wired_or[1],
+		SS_MAP2_BACK,
+		SS_MAP2
+	);
+	localparam [9:0] regs_savestates_SSREG_INDEX_MAP3 = 10'd34;
+	eReg_SavestateV #(
+		regs_savestates_SSREG_INDEX_MAP3,
+		64'h0000000000000000
+	) iREG_SAVESTATE_MAP3(
+		clk,
+		SaveStateBus_Din,
+		SaveStateBus_Adr,
+		SaveStateBus_wren,
+		SaveStateBus_rst,
+		SaveStateBus_wired_or[2],
+		SS_MAP3_BACK,
+		SS_MAP3
+	);
+	assign SaveStateBus_Dout = (enable ? SaveStateBus_Dout_active : 64'h0000000000000000);
+endmodule
+module cart_Mapper32 (
+	clk,
+	ce,
+	enable,
+	flags,
+	prg_ain,
+	prg_aout_b,
+	prg_read,
+	prg_write,
+	prg_din,
+	prg_dout_b,
+	prg_allow_b,
+	chr_ain,
+	chr_aout_b,
+	chr_read,
+	chr_allow_b,
+	vram_a10_b,
+	vram_ce_b,
+	irq_b,
+	audio_in,
+	audio_b,
+	flags_out_b,
+	SaveStateBus_Din,
+	SaveStateBus_Adr,
+	SaveStateBus_wren,
+	SaveStateBus_rst,
+	SaveStateBus_load,
+	SaveStateBus_Dout
+);
+	input clk;
+	input ce;
+	input enable;
+	input [31:0] flags;
+	input [15:0] prg_ain;
+	output wire [21:0] prg_aout_b;
+	input prg_read;
+	input prg_write;
+	input [7:0] prg_din;
+	output wire [7:0] prg_dout_b;
+	output wire prg_allow_b;
+	input [13:0] chr_ain;
+	output wire [21:0] chr_aout_b;
+	input chr_read;
+	output wire chr_allow_b;
+	output wire vram_a10_b;
+	output wire vram_ce_b;
+	output wire irq_b;
+	input [15:0] audio_in;
+	output wire [15:0] audio_b;
+	output wire [15:0] flags_out_b;
+	input [63:0] SaveStateBus_Din;
+	input [9:0] SaveStateBus_Adr;
+	input SaveStateBus_wren;
+	input SaveStateBus_rst;
+	input SaveStateBus_load;
+	output wire [63:0] SaveStateBus_Dout;
+	wire [21:0] prg_aout;
+	assign prg_aout_b = (enable ? prg_aout : 22'h000000);
+	assign prg_dout_b = (enable ? 8'hff : {8 {1'b1}});
+	wire prg_allow;
+	assign prg_allow_b = (enable ? prg_allow : 1'h0);
+	wire [21:0] chr_aout;
+	assign chr_aout_b = (enable ? chr_aout : 22'h000000);
+	wire chr_allow;
+	assign chr_allow_b = (enable ? chr_allow : 1'h0);
+	reg vram_a10;
+	assign vram_a10_b = (enable ? vram_a10 : 1'h0);
+	wire vram_ce;
+	assign vram_ce_b = (enable ? vram_ce : 1'h0);
+	assign irq_b = (enable ? 1'b0 : 1'h0);
+	reg [15:0] flags_out = 16'h0008;
+	assign flags_out_b = (enable ? flags_out : 16'h0000);
+	assign audio_b = (enable ? {1'b0, audio_in[15:1]} : 16'h0000);
+	reg [4:0] prgreg0;
+	reg [4:0] prgreg1;
+	reg [7:0] chrreg0;
+	reg [7:0] chrreg1;
+	reg [7:0] chrreg2;
+	reg [7:0] chrreg3;
+	reg [7:0] chrreg4;
+	reg [7:0] chrreg5;
+	reg [7:0] chrreg6;
+	reg [7:0] chrreg7;
+	reg prgmode;
+	reg mirror;
+	wire submapper1 = flags[21] == 1;
+	wire ram_support = flags[29:26] == 4'd7;
+	reg [4:0] prgsel;
+	reg [7:0] chrsel;
+	wire [63:0] SS_MAP1;
+	wire [63:0] SS_MAP2;
+	always @(posedge clk)
+		if (~enable)
+			prgmode <= 1'b0;
+		else if (SaveStateBus_load) begin
+			chrreg0 <= SS_MAP1[7:0];
+			chrreg1 <= SS_MAP1[15:8];
+			chrreg2 <= SS_MAP1[23:16];
+			chrreg3 <= SS_MAP1[31:24];
+			chrreg4 <= SS_MAP1[39:32];
+			chrreg5 <= SS_MAP1[47:40];
+			chrreg6 <= SS_MAP1[55:48];
+			chrreg7 <= SS_MAP1[63:56];
+			prgreg0 <= SS_MAP2[4:0];
+			prgreg1 <= SS_MAP2[9:5];
+			prgmode <= SS_MAP2[10];
+			mirror <= SS_MAP2[11];
+		end
+		else if (ce) begin
+			if ((prg_ain[15:14] == 2'b10) & prg_write)
+				casez ({prg_ain[13:12], submapper1, prg_ain[2:0]})
+					6'b00zzzz: prgreg0 <= prg_din[4:0];
+					6'b010zzz: {prgmode, mirror} <= prg_din[1:0];
+					6'b10zzzz: prgreg1 <= prg_din[4:0];
+					6'b11z000: chrreg0 <= prg_din;
+					6'b11z001: chrreg1 <= prg_din;
+					6'b11z010: chrreg2 <= prg_din;
+					6'b11z011: chrreg3 <= prg_din;
+					6'b11z100: chrreg4 <= prg_din;
+					6'b11z101: chrreg5 <= prg_din;
+					6'b11z110: chrreg6 <= prg_din;
+					6'b11z111: chrreg7 <= prg_din;
+				endcase
+		end
+	wire [63:0] SS_MAP1_BACK;
+	assign SS_MAP1_BACK[7:0] = chrreg0;
+	assign SS_MAP1_BACK[15:8] = chrreg1;
+	assign SS_MAP1_BACK[23:16] = chrreg2;
+	assign SS_MAP1_BACK[31:24] = chrreg3;
+	assign SS_MAP1_BACK[39:32] = chrreg4;
+	assign SS_MAP1_BACK[47:40] = chrreg5;
+	assign SS_MAP1_BACK[55:48] = chrreg6;
+	assign SS_MAP1_BACK[63:56] = chrreg7;
+	wire [63:0] SS_MAP2_BACK;
+	assign SS_MAP2_BACK[4:0] = prgreg0;
+	assign SS_MAP2_BACK[9:5] = prgreg1;
+	assign SS_MAP2_BACK[10] = prgmode;
+	assign SS_MAP2_BACK[11] = mirror;
+	assign SS_MAP2_BACK[63:12] = 52'b0000000000000000000000000000000000000000000000000000;
+	always @(*) begin
+		casez ({submapper1, mirror})
+			2'b00: vram_a10 = {chr_ain[10]};
+			2'b01: vram_a10 = {chr_ain[11]};
+			2'b1z: vram_a10 = 1'b1;
+		endcase
+		casez ({prg_ain[14:13], prgmode})
+			3'b000: prgsel = prgreg0;
+			3'b001: prgsel = 5'b11110;
+			3'b01z: prgsel = prgreg1;
+			3'b100: prgsel = 5'b11110;
+			3'b101: prgsel = prgreg0;
+			3'b11z: prgsel = 5'b11111;
+		endcase
+		casez ({chr_ain[12:10]})
+			3'b000: chrsel = chrreg0;
+			3'b001: chrsel = chrreg1;
+			3'b010: chrsel = chrreg2;
+			3'b011: chrsel = chrreg3;
+			3'b100: chrsel = chrreg4;
+			3'b101: chrsel = chrreg5;
+			3'b110: chrsel = chrreg6;
+			3'b111: chrsel = chrreg7;
+		endcase
+	end
+	wire [21:0] prg_ram = {9'b111100000, prg_ain[12:0]};
+	wire prg_is_ram = (prg_ain[15:13] == 3'b011) && ram_support;
+	assign vram_ce = chr_ain[13];
+	assign prg_aout = (prg_is_ram ? prg_ram : {4'b0000, prgsel, prg_ain[12:0]});
+	assign prg_allow = (prg_ain[15] && !prg_write) || prg_is_ram;
+	assign chr_allow = flags[15];
+	assign chr_aout = {4'b1000, chrsel, chr_ain[9:0]};
+	localparam SAVESTATE_MODULES = 2;
+	wire [63:0] SaveStateBus_wired_or [0:1];
+	wire [63:0] SaveStateBus_Dout_active = SaveStateBus_wired_or[0] | SaveStateBus_wired_or[1];
+	localparam [9:0] regs_savestates_SSREG_INDEX_MAP1 = 10'd32;
+	eReg_SavestateV #(
+		regs_savestates_SSREG_INDEX_MAP1,
+		64'h0000000000000000
+	) iREG_SAVESTATE_MAP1(
+		clk,
+		SaveStateBus_Din,
+		SaveStateBus_Adr,
+		SaveStateBus_wren,
+		SaveStateBus_rst,
+		SaveStateBus_wired_or[0],
+		SS_MAP1_BACK,
+		SS_MAP1
+	);
+	localparam [9:0] regs_savestates_SSREG_INDEX_MAP2 = 10'd33;
+	eReg_SavestateV #(
+		regs_savestates_SSREG_INDEX_MAP2,
+		64'h0000000000000000
+	) iREG_SAVESTATE_MAP2(
+		clk,
+		SaveStateBus_Din,
+		SaveStateBus_Adr,
+		SaveStateBus_wren,
+		SaveStateBus_rst,
+		SaveStateBus_wired_or[1],
+		SS_MAP2_BACK,
+		SS_MAP2
+	);
+	assign SaveStateBus_Dout = (enable ? SaveStateBus_Dout_active : 64'h0000000000000000);
+endmodule
+module cart_Mapper65 (
+	clk,
+	ce,
+	enable,
+	flags,
+	prg_ain,
+	prg_aout_b,
+	prg_read,
+	prg_write,
+	prg_din,
+	prg_dout_b,
+	prg_allow_b,
+	chr_ain,
+	chr_aout_b,
+	chr_read,
+	chr_allow_b,
+	vram_a10_b,
+	vram_ce_b,
+	irq_b,
+	audio_in,
+	audio_b,
+	flags_out_b,
+	SaveStateBus_Din,
+	SaveStateBus_Adr,
+	SaveStateBus_wren,
+	SaveStateBus_rst,
+	SaveStateBus_load,
+	SaveStateBus_Dout
+);
+	input clk;
+	input ce;
+	input enable;
+	input [31:0] flags;
+	input [15:0] prg_ain;
+	output wire [21:0] prg_aout_b;
+	input prg_read;
+	input prg_write;
+	input [7:0] prg_din;
+	output wire [7:0] prg_dout_b;
+	output wire prg_allow_b;
+	input [13:0] chr_ain;
+	output wire [21:0] chr_aout_b;
+	input chr_read;
+	output wire chr_allow_b;
+	output wire vram_a10_b;
+	output wire vram_ce_b;
+	output wire irq_b;
+	input [15:0] audio_in;
+	output wire [15:0] audio_b;
+	output wire [15:0] flags_out_b;
+	input [63:0] SaveStateBus_Din;
+	input [9:0] SaveStateBus_Adr;
+	input SaveStateBus_wren;
+	input SaveStateBus_rst;
+	input SaveStateBus_load;
+	output wire [63:0] SaveStateBus_Dout;
+	wire [21:0] prg_aout;
+	assign prg_aout_b = (enable ? prg_aout : 22'h000000);
+	assign prg_dout_b = (enable ? 8'hff : {8 {1'b1}});
+	wire prg_allow;
+	assign prg_allow_b = (enable ? prg_allow : 1'h0);
+	wire [21:0] chr_aout;
+	assign chr_aout_b = (enable ? chr_aout : 22'h000000);
+	wire chr_allow;
+	assign chr_allow_b = (enable ? chr_allow : 1'h0);
+	reg vram_a10;
+	assign vram_a10_b = (enable ? vram_a10 : 1'h0);
+	wire vram_ce;
+	assign vram_ce_b = (enable ? vram_ce : 1'h0);
+	reg irq;
+	assign irq_b = (enable ? irq : 1'h0);
+	reg [15:0] flags_out = 16'h0008;
+	assign flags_out_b = (enable ? flags_out : 16'h0000);
+	assign audio_b = (enable ? {1'b0, audio_in[15:1]} : 16'h0000);
+	reg [7:0] prg_bank_0;
+	reg [7:0] prg_bank_1;
+	reg [7:0] prg_bank_2;
+	reg [7:0] chr_bank_0;
+	reg [7:0] chr_bank_1;
+	reg [7:0] chr_bank_2;
+	reg [7:0] chr_bank_3;
+	reg [7:0] chr_bank_4;
+	reg [7:0] chr_bank_5;
+	reg [7:0] chr_bank_6;
+	reg [7:0] chr_bank_7;
+	reg mirroring;
+	reg irq_ack;
+	reg irq_enable;
+	reg [15:0] irq_reload;
+	reg [15:0] irq_counter;
+	wire [63:0] SS_MAP1;
+	wire [63:0] SS_MAP2;
+	always @(posedge clk)
+		if (~enable) begin
+			prg_bank_0 <= 8'h00;
+			prg_bank_1 <= 8'h01;
+			prg_bank_2 <= 8'hfe;
+			chr_bank_0 <= 0;
+			chr_bank_1 <= 0;
+			chr_bank_2 <= 0;
+			chr_bank_3 <= 0;
+			chr_bank_4 <= 0;
+			chr_bank_5 <= 0;
+			chr_bank_6 <= 0;
+			chr_bank_7 <= 0;
+			mirroring <= 0;
+			irq_reload <= 0;
+			irq_counter <= 0;
+			irq_enable <= 0;
+		end
+		else if (SaveStateBus_load) begin
+			chr_bank_0 <= SS_MAP1[7:0];
+			chr_bank_1 <= SS_MAP1[15:8];
+			chr_bank_2 <= SS_MAP1[23:16];
+			chr_bank_3 <= SS_MAP1[31:24];
+			chr_bank_4 <= SS_MAP1[39:32];
+			chr_bank_5 <= SS_MAP1[47:40];
+			chr_bank_6 <= SS_MAP1[55:48];
+			chr_bank_7 <= SS_MAP1[63:56];
+			prg_bank_0 <= SS_MAP2[7:0];
+			prg_bank_1 <= SS_MAP2[15:8];
+			prg_bank_2 <= SS_MAP2[23:16];
+			irq_reload <= SS_MAP2[39:24];
+			irq_counter <= SS_MAP2[55:40];
+			irq_enable <= SS_MAP2[56];
+			irq <= SS_MAP2[57];
+			irq_ack <= SS_MAP2[58];
+			mirroring <= SS_MAP2[59];
+		end
+		else if (ce) begin
+			irq_ack <= 1'b0;
+			if (prg_write && prg_ain[15])
+				case ({prg_ain[14:12], prg_ain[2:0]})
+					6'b000000: prg_bank_0 <= prg_din;
+					6'b010000: prg_bank_1 <= prg_din;
+					6'b100000: prg_bank_2 <= prg_din;
+					6'b011000: chr_bank_0 <= prg_din;
+					6'b011001: chr_bank_1 <= prg_din;
+					6'b011010: chr_bank_2 <= prg_din;
+					6'b011011: chr_bank_3 <= prg_din;
+					6'b011100: chr_bank_4 <= prg_din;
+					6'b011101: chr_bank_5 <= prg_din;
+					6'b011110: chr_bank_6 <= prg_din;
+					6'b011111: chr_bank_7 <= prg_din;
+					6'b001001: mirroring <= prg_din[7];
+					6'b001011: {irq_ack, irq_enable} <= {1'b1, prg_din[7]};
+					6'b001100: {irq_ack, irq_counter} <= {1'b1, irq_reload};
+					6'b001101: irq_reload[15:8] <= prg_din;
+					6'b001110: irq_reload[7:0] <= prg_din;
+				endcase
+			if (irq_enable) begin
+				irq_counter <= irq_counter - 16'd1;
+				if (irq_counter == 16'h0000) begin
+					irq <= 1'b1;
+					irq_enable <= 0;
+					irq_counter <= 0;
+				end
+			end
+			if (irq_ack)
+				irq <= 1'b0;
+		end
+	wire [63:0] SS_MAP1_BACK;
+	assign SS_MAP1_BACK[7:0] = chr_bank_0;
+	assign SS_MAP1_BACK[15:8] = chr_bank_1;
+	assign SS_MAP1_BACK[23:16] = chr_bank_2;
+	assign SS_MAP1_BACK[31:24] = chr_bank_3;
+	assign SS_MAP1_BACK[39:32] = chr_bank_4;
+	assign SS_MAP1_BACK[47:40] = chr_bank_5;
+	assign SS_MAP1_BACK[55:48] = chr_bank_6;
+	assign SS_MAP1_BACK[63:56] = chr_bank_7;
+	wire [63:0] SS_MAP2_BACK;
+	assign SS_MAP2_BACK[7:0] = prg_bank_0;
+	assign SS_MAP2_BACK[15:8] = prg_bank_1;
+	assign SS_MAP2_BACK[23:16] = prg_bank_2;
+	assign SS_MAP2_BACK[39:24] = irq_reload;
+	assign SS_MAP2_BACK[55:40] = irq_counter;
+	assign SS_MAP2_BACK[56] = irq_enable;
+	assign SS_MAP2_BACK[57] = irq;
+	assign SS_MAP2_BACK[58] = irq_ack;
+	assign SS_MAP2_BACK[59] = mirroring;
+	assign SS_MAP2_BACK[63:60] = 4'b0000;
+	always @(*) vram_a10 = (mirroring ? chr_ain[11] : chr_ain[10]);
+	reg [7:0] prgsel;
+	always @(*)
+		case (prg_ain[14:13])
+			2'b00: prgsel = prg_bank_0;
+			2'b01: prgsel = prg_bank_1;
+			2'b10: prgsel = prg_bank_2;
+			2'b11: prgsel = 8'hff;
+		endcase
+	reg [7:0] chrsel;
+	always @(*)
+		casez (chr_ain[12:10])
+			0: chrsel = chr_bank_0;
+			1: chrsel = chr_bank_1;
+			2: chrsel = chr_bank_2;
+			3: chrsel = chr_bank_3;
+			4: chrsel = chr_bank_4;
+			5: chrsel = chr_bank_5;
+			6: chrsel = chr_bank_6;
+			7: chrsel = chr_bank_7;
+		endcase
+	assign chr_aout = {4'b1000, chrsel, chr_ain[9:0]};
+	assign prg_aout = {2'b00, prgsel[6:0], prg_ain[12:0]};
+	assign prg_allow = prg_ain[15] && !prg_write;
+	assign chr_allow = flags[15];
+	assign vram_ce = chr_ain[13];
+	localparam SAVESTATE_MODULES = 2;
+	wire [63:0] SaveStateBus_wired_or [0:1];
+	wire [63:0] SaveStateBus_Dout_active = SaveStateBus_wired_or[0] | SaveStateBus_wired_or[1];
+	localparam [9:0] regs_savestates_SSREG_INDEX_MAP1 = 10'd32;
+	eReg_SavestateV #(
+		regs_savestates_SSREG_INDEX_MAP1,
+		64'h0000000000000000
+	) iREG_SAVESTATE_MAP1(
+		clk,
+		SaveStateBus_Din,
+		SaveStateBus_Adr,
+		SaveStateBus_wren,
+		SaveStateBus_rst,
+		SaveStateBus_wired_or[0],
+		SS_MAP1_BACK,
+		SS_MAP1
+	);
+	localparam [9:0] regs_savestates_SSREG_INDEX_MAP2 = 10'd33;
+	eReg_SavestateV #(
+		regs_savestates_SSREG_INDEX_MAP2,
+		64'h0000000000000000
+	) iREG_SAVESTATE_MAP2(
+		clk,
+		SaveStateBus_Din,
+		SaveStateBus_Adr,
+		SaveStateBus_wren,
+		SaveStateBus_rst,
+		SaveStateBus_wired_or[1],
+		SS_MAP2_BACK,
+		SS_MAP2
+	);
+	assign SaveStateBus_Dout = (enable ? SaveStateBus_Dout_active : 64'h0000000000000000);
+endmodule
+module cart_Mapper111 (
+	clk,
+	ce,
+	enable,
+	flags,
+	prg_ain,
+	prg_aout_b,
+	prg_read,
+	prg_write,
+	prg_din,
+	prg_dout_b,
+	prg_allow_b,
+	chr_ain,
+	chr_aout_b,
+	chr_read,
+	chr_allow_b,
+	vram_a10_b,
+	vram_ce_b,
+	irq_b,
+	audio_in,
+	audio_b,
+	flags_out_b,
+	SaveStateBus_Din,
+	SaveStateBus_Adr,
+	SaveStateBus_wren,
+	SaveStateBus_rst,
+	SaveStateBus_load,
+	SaveStateBus_Dout
+);
+	input clk;
+	input ce;
+	input enable;
+	input [31:0] flags;
+	input [15:0] prg_ain;
+	output wire [21:0] prg_aout_b;
+	input prg_read;
+	input prg_write;
+	input [7:0] prg_din;
+	output wire [7:0] prg_dout_b;
+	output wire prg_allow_b;
+	input [13:0] chr_ain;
+	output wire [21:0] chr_aout_b;
+	input chr_read;
+	output wire chr_allow_b;
+	output wire vram_a10_b;
+	output wire vram_ce_b;
+	output wire irq_b;
+	input [15:0] audio_in;
+	output wire [15:0] audio_b;
+	output wire [15:0] flags_out_b;
+	input [63:0] SaveStateBus_Din;
+	input [9:0] SaveStateBus_Adr;
+	input SaveStateBus_wren;
+	input SaveStateBus_rst;
+	input SaveStateBus_load;
+	output wire [63:0] SaveStateBus_Dout;
+	wire [21:0] prg_aout;
+	assign prg_aout_b = (enable ? prg_aout : 22'h000000);
+	wire [7:0] prg_dout;
+	assign prg_dout_b = (enable ? prg_dout : {8 {1'b1}});
+	wire prg_allow;
+	assign prg_allow_b = (enable ? prg_allow : 1'h0);
+	wire [21:0] chr_aout;
+	assign chr_aout_b = (enable ? chr_aout : 22'h000000);
+	wire chr_allow;
+	assign chr_allow_b = (enable ? chr_allow : 1'h0);
+	wire vram_a10;
+	assign vram_a10_b = (enable ? vram_a10 : 1'h0);
+	wire vram_ce;
+	assign vram_ce_b = (enable ? vram_ce : 1'h0);
+	wire irq;
+	assign irq_b = (enable ? irq : 1'h0);
+	wire [15:0] flags_out = 16'h0028;
+	assign flags_out_b = (enable ? flags_out : 16'h0000);
+	wire [15:0] audio = audio_in;
+	assign audio_b = (enable ? audio : 16'h0000);
+	reg [3:0] prgbank_reg;
+	reg chrbank_reg;
+	reg namebank_reg;
+	reg [1:0] write_state;
+	localparam [1:0] STATE_IDLE = 2'b00;
+	localparam [1:0] STATE_UNLOCK1 = 2'b01;
+	localparam [1:0] STATE_UNLOCK2 = 2'b10;
+	localparam [1:0] STATE_CMD = 2'b11;
+	wire unlock1_match = prg_ain == 16'hd555;
+	wire unlock2_match = prg_ain == 16'haaaa;
+	wire flash_write = ((write_state == STATE_CMD) && prg_ain[15]) && prg_write;
+	wire [63:0] SS_MAP1;
+	always @(posedge clk)
+		if (~enable) begin
+			{prgbank_reg, chrbank_reg, namebank_reg} <= 0;
+			write_state <= STATE_IDLE;
+		end
+		else if (SaveStateBus_load) begin
+			prgbank_reg <= SS_MAP1[3:0];
+			chrbank_reg <= SS_MAP1[4];
+			namebank_reg <= SS_MAP1[5];
+			write_state <= SS_MAP1[7:6];
+		end
+		else if (ce) begin
+			if (((prg_write & prg_ain[12]) & prg_ain[14]) & !prg_ain[15]) begin
+				prgbank_reg <= prg_din[3:0];
+				chrbank_reg <= prg_din[4];
+				namebank_reg <= prg_din[5];
+			end
+			else if (prg_ain[15] && prg_write)
+				case (write_state)
+					STATE_IDLE: write_state <= (unlock1_match && (prg_din == 8'haa) ? STATE_UNLOCK1 : STATE_IDLE);
+					STATE_UNLOCK1: write_state <= (unlock2_match && (prg_din == 8'h55) ? STATE_UNLOCK2 : STATE_IDLE);
+					STATE_UNLOCK2: write_state <= (unlock1_match && (prg_din == 8'ha0) ? STATE_CMD : STATE_IDLE);
+					STATE_CMD: write_state <= STATE_IDLE;
+				endcase
+		end
+	wire [63:0] SS_MAP1_BACK;
+	assign SS_MAP1_BACK[3:0] = prgbank_reg;
+	assign SS_MAP1_BACK[4] = chrbank_reg;
+	assign SS_MAP1_BACK[5] = namebank_reg;
+	assign SS_MAP1_BACK[7:6] = write_state;
+	assign SS_MAP1_BACK[63:8] = 56'b00000000000000000000000000000000000000000000000000000000;
+	assign chr_aout[21:15] = 7'b1111000;
+	assign chr_aout[14:13] = {chr_ain[13], (chr_ain[13] ? namebank_reg : chrbank_reg)};
+	assign chr_aout[12:0] = chr_ain[12:0];
+	assign vram_a10 = chr_aout[10];
+	assign prg_aout[21:19] = 3'b000;
+	assign prg_aout[18:15] = prgbank_reg;
+	assign prg_aout[14:0] = prg_ain[14:0];
+	assign prg_allow = prg_ain[15] && (!prg_write || flash_write);
+	assign chr_allow = 1'b1;
+	assign prg_dout = 8'hff;
+	assign vram_ce = 1'b0;
+	assign irq = 1'b0;
 	wire [63:0] SaveStateBus_Dout_active;
 	localparam [9:0] regs_savestates_SSREG_INDEX_MAP1 = 10'd32;
 	eReg_SavestateV #(
@@ -3423,8 +4606,84 @@ module cart_top (
 	reg [1023:0] me;
 	wire mapper28_en = (((((((me[0] | me[2]) | me[3]) | me[7]) | me[94]) | me[97]) | me[180]) | me[185]) | me[28];
 	assign SaveStateBus_wired_or[1] = 0;
-	assign SaveStateBus_wired_or[26] = 0;
-	assign SaveStateBus_wired_or[28] = 0;
+	wire [21:0] prg_addr_b__map30;
+	wire [7:0] prg_dout_b__map30;
+	wire prg_allow_b__map30;
+	wire [21:0] chr_addr_b__map30;
+	wire chr_allow_b__map30;
+	wire vram_a10_b__map30;
+	wire vram_ce_b__map30;
+	wire irq_b__map30;
+	wire [15:0] flags_out_b__map30;
+	wire [15:0] audio_out_b__map30;
+	cart_Mapper30 map30(
+		.clk(clk),
+		.ce(ce),
+		.enable(me[30]),
+		.flags(flags),
+		.prg_ain(prg_ain),
+		.prg_aout_b(prg_addr_b__map30),
+		.prg_read(prg_read),
+		.prg_write(prg_write),
+		.prg_din(prg_din),
+		.prg_dout_b(prg_dout_b__map30),
+		.prg_allow_b(prg_allow_b__map30),
+		.chr_ain(chr_ain),
+		.chr_aout_b(chr_addr_b__map30),
+		.chr_read(chr_read),
+		.chr_allow_b(chr_allow_b__map30),
+		.vram_a10_b(vram_a10_b__map30),
+		.vram_ce_b(vram_ce_b__map30),
+		.irq_b(irq_b__map30),
+		.flags_out_b(flags_out_b__map30),
+		.audio_in(audio_in),
+		.audio_b(audio_out_b__map30),
+		.SaveStateBus_Din(SaveStateBus_Din),
+		.SaveStateBus_Adr(SaveStateBus_Adr),
+		.SaveStateBus_wren(SaveStateBus_wren),
+		.SaveStateBus_rst(SaveStateBus_rst),
+		.SaveStateBus_load(SaveStateBus_load),
+		.SaveStateBus_Dout(SaveStateBus_wired_or[26])
+	);
+	wire [21:0] prg_addr_b__map32;
+	wire [7:0] prg_dout_b__map32;
+	wire prg_allow_b__map32;
+	wire [21:0] chr_addr_b__map32;
+	wire chr_allow_b__map32;
+	wire vram_a10_b__map32;
+	wire vram_ce_b__map32;
+	wire irq_b__map32;
+	wire [15:0] flags_out_b__map32;
+	wire [15:0] audio_out_b__map32;
+	cart_Mapper32 map32(
+		.clk(clk),
+		.ce(ce),
+		.enable(me[32]),
+		.flags(flags),
+		.prg_ain(prg_ain),
+		.prg_aout_b(prg_addr_b__map32),
+		.prg_read(prg_read),
+		.prg_write(prg_write),
+		.prg_din(prg_din),
+		.prg_dout_b(prg_dout_b__map32),
+		.prg_allow_b(prg_allow_b__map32),
+		.chr_ain(chr_ain),
+		.chr_aout_b(chr_addr_b__map32),
+		.chr_read(chr_read),
+		.chr_allow_b(chr_allow_b__map32),
+		.vram_a10_b(vram_a10_b__map32),
+		.vram_ce_b(vram_ce_b__map32),
+		.irq_b(irq_b__map32),
+		.flags_out_b(flags_out_b__map32),
+		.audio_in(audio_in),
+		.audio_b(audio_out_b__map32),
+		.SaveStateBus_Din(SaveStateBus_Din),
+		.SaveStateBus_Adr(SaveStateBus_Adr),
+		.SaveStateBus_wren(SaveStateBus_wren),
+		.SaveStateBus_rst(SaveStateBus_rst),
+		.SaveStateBus_load(SaveStateBus_load),
+		.SaveStateBus_Dout(SaveStateBus_wired_or[28])
+	);
 	assign SaveStateBus_wired_or[6] = 0;
 	wire mmc3_en = ((((((((((((((((((((((((((me[118] | me[119]) | me[47]) | me[206]) | me[112]) | me[88]) | me[154]) | me[95]) | me[76]) | me[80]) | me[82]) | me[207]) | me[48]) | me[33]) | me[37]) | me[74]) | me[191]) | me[192]) | me[194]) | me[195]) | me[196]) | me[4]) | me[189]) | me[268]) | me[205]) | me[208]) | me[45]) | me[52];
 	assign SaveStateBus_wired_or[2] = 0;
@@ -3442,9 +4701,85 @@ module cart_top (
 	assign map16_prg_write = 0;
 	assign map16_ovr = 0;
 	assign SaveStateBus_wired_or[5] = 0;
-	assign SaveStateBus_wired_or[27] = 0;
+	wire [21:0] prg_addr_b__map18;
+	wire [7:0] prg_dout_b__map18;
+	wire prg_allow_b__map18;
+	wire [21:0] chr_addr_b__map18;
+	wire chr_allow_b__map18;
+	wire vram_a10_b__map18;
+	wire vram_ce_b__map18;
+	wire irq_b__map18;
+	wire [15:0] flags_out_b__map18;
+	wire [15:0] audio_out_b__map18;
+	cart_Mapper18 map18(
+		.clk(clk),
+		.ce(ce),
+		.enable(me[18]),
+		.flags(flags),
+		.prg_ain(prg_ain),
+		.prg_aout_b(prg_addr_b__map18),
+		.prg_read(prg_read),
+		.prg_write(prg_write),
+		.prg_din(prg_din),
+		.prg_dout_b(prg_dout_b__map18),
+		.prg_allow_b(prg_allow_b__map18),
+		.chr_ain(chr_ain),
+		.chr_aout_b(chr_addr_b__map18),
+		.chr_read(chr_read),
+		.chr_allow_b(chr_allow_b__map18),
+		.vram_a10_b(vram_a10_b__map18),
+		.vram_ce_b(vram_ce_b__map18),
+		.irq_b(irq_b__map18),
+		.flags_out_b(flags_out_b__map18),
+		.audio_in(audio_in),
+		.audio_b(audio_out_b__map18),
+		.SaveStateBus_Din(SaveStateBus_Din),
+		.SaveStateBus_Adr(SaveStateBus_Adr),
+		.SaveStateBus_wren(SaveStateBus_wren),
+		.SaveStateBus_rst(SaveStateBus_rst),
+		.SaveStateBus_load(SaveStateBus_load),
+		.SaveStateBus_Dout(SaveStateBus_wired_or[27])
+	);
 	assign SaveStateBus_wired_or[31] = 0;
-	assign SaveStateBus_wired_or[29] = 0;
+	wire [21:0] prg_addr_b__map65;
+	wire [7:0] prg_dout_b__map65;
+	wire prg_allow_b__map65;
+	wire [21:0] chr_addr_b__map65;
+	wire chr_allow_b__map65;
+	wire vram_a10_b__map65;
+	wire vram_ce_b__map65;
+	wire irq_b__map65;
+	wire [15:0] flags_out_b__map65;
+	wire [15:0] audio_out_b__map65;
+	cart_Mapper65 map65(
+		.clk(clk),
+		.ce(ce),
+		.enable(me[65]),
+		.flags(flags),
+		.prg_ain(prg_ain),
+		.prg_aout_b(prg_addr_b__map65),
+		.prg_read(prg_read),
+		.prg_write(prg_write),
+		.prg_din(prg_din),
+		.prg_dout_b(prg_dout_b__map65),
+		.prg_allow_b(prg_allow_b__map65),
+		.chr_ain(chr_ain),
+		.chr_aout_b(chr_addr_b__map65),
+		.chr_read(chr_read),
+		.chr_allow_b(chr_allow_b__map65),
+		.vram_a10_b(vram_a10_b__map65),
+		.vram_ce_b(vram_ce_b__map65),
+		.irq_b(irq_b__map65),
+		.flags_out_b(flags_out_b__map65),
+		.audio_in(audio_in),
+		.audio_b(audio_out_b__map65),
+		.SaveStateBus_Din(SaveStateBus_Din),
+		.SaveStateBus_Adr(SaveStateBus_Adr),
+		.SaveStateBus_wren(SaveStateBus_wren),
+		.SaveStateBus_rst(SaveStateBus_rst),
+		.SaveStateBus_load(SaveStateBus_load),
+		.SaveStateBus_Dout(SaveStateBus_wired_or[29])
+	);
 	wire mapper66_en = (((((((((me[11] | me[38]) | me[46]) | me[86]) | me[87]) | me[101]) | me[140]) | me[66]) | me[144]) | me[145]) | me[149];
 	assign SaveStateBus_wired_or[3] = 0;
 	wire [21:0] prg_addr_b__map67;
@@ -3568,7 +4903,45 @@ module cart_top (
 	assign SaveStateBus_wired_or[8] = 0;
 	assign SaveStateBus_wired_or[30] = 0;
 	assign SaveStateBus_wired_or[32] = 0;
-	assign SaveStateBus_wired_or[33] = 0;
+	wire [21:0] prg_addr_b__map78;
+	wire [7:0] prg_dout_b__map78;
+	wire prg_allow_b__map78;
+	wire [21:0] chr_addr_b__map78;
+	wire chr_allow_b__map78;
+	wire vram_a10_b__map78;
+	wire vram_ce_b__map78;
+	wire irq_b__map78;
+	wire [15:0] flags_out_b__map78;
+	wire [15:0] audio_out_b__map78;
+	cart_Mapper78 map78(
+		.clk(clk),
+		.ce(ce),
+		.enable(((me[152] | me[70]) | me[78]) | me[81]),
+		.flags(flags),
+		.prg_ain(prg_ain),
+		.prg_aout_b(prg_addr_b__map78),
+		.prg_read(prg_read),
+		.prg_write(prg_write),
+		.prg_din(prg_din),
+		.prg_dout_b(prg_dout_b__map78),
+		.prg_allow_b(prg_allow_b__map78),
+		.chr_ain(chr_ain),
+		.chr_aout_b(chr_addr_b__map78),
+		.chr_read(chr_read),
+		.chr_allow_b(chr_allow_b__map78),
+		.vram_a10_b(vram_a10_b__map78),
+		.vram_ce_b(vram_ce_b__map78),
+		.irq_b(irq_b__map78),
+		.flags_out_b(flags_out_b__map78),
+		.audio_in(audio_in),
+		.audio_b(audio_out_b__map78),
+		.SaveStateBus_Din(SaveStateBus_Din),
+		.SaveStateBus_Adr(SaveStateBus_Adr),
+		.SaveStateBus_wren(SaveStateBus_wren),
+		.SaveStateBus_rst(SaveStateBus_rst),
+		.SaveStateBus_load(SaveStateBus_load),
+		.SaveStateBus_Dout(SaveStateBus_wired_or[33])
+	);
 	assign SaveStateBus_wired_or[4] = 0;
 	wire [21:0] prg_addr_b__map89;
 	wire [7:0] prg_dout_b__map89;
@@ -3610,7 +4983,45 @@ module cart_top (
 		.SaveStateBus_Dout(SaveStateBus_wired_or[34])
 	);
 	assign SaveStateBus_wired_or[40] = 0;
-	assign SaveStateBus_wired_or[25] = 0;
+	wire [21:0] prg_addr_b__map111;
+	wire [7:0] prg_dout_b__map111;
+	wire prg_allow_b__map111;
+	wire [21:0] chr_addr_b__map111;
+	wire chr_allow_b__map111;
+	wire vram_a10_b__map111;
+	wire vram_ce_b__map111;
+	wire irq_b__map111;
+	wire [15:0] flags_out_b__map111;
+	wire [15:0] audio_out_b__map111;
+	cart_Mapper111 map111(
+		.clk(clk),
+		.ce(ce),
+		.enable(me[111]),
+		.flags(flags),
+		.prg_ain(prg_ain),
+		.prg_aout_b(prg_addr_b__map111),
+		.prg_read(prg_read),
+		.prg_write(prg_write),
+		.prg_din(prg_din),
+		.prg_dout_b(prg_dout_b__map111),
+		.prg_allow_b(prg_allow_b__map111),
+		.chr_ain(chr_ain),
+		.chr_aout_b(chr_addr_b__map111),
+		.chr_read(chr_read),
+		.chr_allow_b(chr_allow_b__map111),
+		.vram_a10_b(vram_a10_b__map111),
+		.vram_ce_b(vram_ce_b__map111),
+		.irq_b(irq_b__map111),
+		.flags_out_b(flags_out_b__map111),
+		.audio_in(audio_in),
+		.audio_b(audio_out_b__map111),
+		.SaveStateBus_Din(SaveStateBus_Din),
+		.SaveStateBus_Adr(SaveStateBus_Adr),
+		.SaveStateBus_wren(SaveStateBus_wren),
+		.SaveStateBus_rst(SaveStateBus_rst),
+		.SaveStateBus_load(SaveStateBus_load),
+		.SaveStateBus_Dout(SaveStateBus_wired_or[25])
+	);
 	assign SaveStateBus_wired_or[24] = 0;
 	wire [21:0] prg_addr_b__vrc1;
 	wire [7:0] prg_dout_b__vrc1;
@@ -3893,16 +5304,16 @@ module cart_top (
 		.SaveStateBus_load(SaveStateBus_load),
 		.SaveStateBus_Dout(SaveStateBus_wired_or[11])
 	);
-	wire prg_allow_b = (((((((prg_allow_b__map67 | prg_allow_b__map68) | prg_allow_b__map69) | prg_allow_b__map89) | prg_allow_b__vrc1) | prg_allow_b__vrc3) | prg_allow_b__vrc24) | prg_allow_b__vrc6) | prg_allow_b__n163;
-	wire vram_a10_b = (((((((vram_a10_b__map67 | vram_a10_b__map68) | vram_a10_b__map69) | vram_a10_b__map89) | vram_a10_b__vrc1) | vram_a10_b__vrc3) | vram_a10_b__vrc24) | vram_a10_b__vrc6) | vram_a10_b__n163;
-	wire vram_ce_b = (((((((vram_ce_b__map67 | vram_ce_b__map68) | vram_ce_b__map69) | vram_ce_b__map89) | vram_ce_b__vrc1) | vram_ce_b__vrc3) | vram_ce_b__vrc24) | vram_ce_b__vrc6) | vram_ce_b__n163;
-	wire chr_allow_b = (((((((chr_allow_b__map67 | chr_allow_b__map68) | chr_allow_b__map69) | chr_allow_b__map89) | chr_allow_b__vrc1) | chr_allow_b__vrc3) | chr_allow_b__vrc24) | chr_allow_b__vrc6) | chr_allow_b__n163;
-	wire irq_b = (((((((irq_b__map67 | irq_b__map68) | irq_b__map69) | irq_b__map89) | irq_b__vrc1) | irq_b__vrc3) | irq_b__vrc24) | irq_b__vrc6) | irq_b__n163;
-	wire [21:0] prg_addr_b = (((((((prg_addr_b__map67 | prg_addr_b__map68) | prg_addr_b__map69) | prg_addr_b__map89) | prg_addr_b__vrc1) | prg_addr_b__vrc3) | prg_addr_b__vrc24) | prg_addr_b__vrc6) | prg_addr_b__n163;
-	wire [21:0] chr_addr_b = (((((((chr_addr_b__map67 | chr_addr_b__map68) | chr_addr_b__map69) | chr_addr_b__map89) | chr_addr_b__vrc1) | chr_addr_b__vrc3) | chr_addr_b__vrc24) | chr_addr_b__vrc6) | chr_addr_b__n163;
-	wire [15:0] flags_out_b = (((((((flags_out_b__map67 | flags_out_b__map68) | flags_out_b__map69) | flags_out_b__map89) | flags_out_b__vrc1) | flags_out_b__vrc3) | flags_out_b__vrc24) | flags_out_b__vrc6) | flags_out_b__n163;
-	wire [15:0] audio_out_b = (((((((audio_out_b__map67 | audio_out_b__map68) | audio_out_b__map69) | audio_out_b__map89) | audio_out_b__vrc1) | audio_out_b__vrc3) | audio_out_b__vrc24) | audio_out_b__vrc6) | audio_out_b__n163;
-	wire [7:0] prg_dout_b = (((((((prg_dout_b__map67 & prg_dout_b__map68) & prg_dout_b__map69) & prg_dout_b__map89) & prg_dout_b__vrc1) & prg_dout_b__vrc3) & prg_dout_b__vrc24) & prg_dout_b__vrc6) & prg_dout_b__n163;
+	wire prg_allow_b = (((((((((((((prg_allow_b__map30 | prg_allow_b__map32) | prg_allow_b__map18) | prg_allow_b__map65) | prg_allow_b__map67) | prg_allow_b__map68) | prg_allow_b__map69) | prg_allow_b__map78) | prg_allow_b__map89) | prg_allow_b__map111) | prg_allow_b__vrc1) | prg_allow_b__vrc3) | prg_allow_b__vrc24) | prg_allow_b__vrc6) | prg_allow_b__n163;
+	wire vram_a10_b = (((((((((((((vram_a10_b__map30 | vram_a10_b__map32) | vram_a10_b__map18) | vram_a10_b__map65) | vram_a10_b__map67) | vram_a10_b__map68) | vram_a10_b__map69) | vram_a10_b__map78) | vram_a10_b__map89) | vram_a10_b__map111) | vram_a10_b__vrc1) | vram_a10_b__vrc3) | vram_a10_b__vrc24) | vram_a10_b__vrc6) | vram_a10_b__n163;
+	wire vram_ce_b = (((((((((((((vram_ce_b__map30 | vram_ce_b__map32) | vram_ce_b__map18) | vram_ce_b__map65) | vram_ce_b__map67) | vram_ce_b__map68) | vram_ce_b__map69) | vram_ce_b__map78) | vram_ce_b__map89) | vram_ce_b__map111) | vram_ce_b__vrc1) | vram_ce_b__vrc3) | vram_ce_b__vrc24) | vram_ce_b__vrc6) | vram_ce_b__n163;
+	wire chr_allow_b = (((((((((((((chr_allow_b__map30 | chr_allow_b__map32) | chr_allow_b__map18) | chr_allow_b__map65) | chr_allow_b__map67) | chr_allow_b__map68) | chr_allow_b__map69) | chr_allow_b__map78) | chr_allow_b__map89) | chr_allow_b__map111) | chr_allow_b__vrc1) | chr_allow_b__vrc3) | chr_allow_b__vrc24) | chr_allow_b__vrc6) | chr_allow_b__n163;
+	wire irq_b = (((((((((((((irq_b__map30 | irq_b__map32) | irq_b__map18) | irq_b__map65) | irq_b__map67) | irq_b__map68) | irq_b__map69) | irq_b__map78) | irq_b__map89) | irq_b__map111) | irq_b__vrc1) | irq_b__vrc3) | irq_b__vrc24) | irq_b__vrc6) | irq_b__n163;
+	wire [21:0] prg_addr_b = (((((((((((((prg_addr_b__map30 | prg_addr_b__map32) | prg_addr_b__map18) | prg_addr_b__map65) | prg_addr_b__map67) | prg_addr_b__map68) | prg_addr_b__map69) | prg_addr_b__map78) | prg_addr_b__map89) | prg_addr_b__map111) | prg_addr_b__vrc1) | prg_addr_b__vrc3) | prg_addr_b__vrc24) | prg_addr_b__vrc6) | prg_addr_b__n163;
+	wire [21:0] chr_addr_b = (((((((((((((chr_addr_b__map30 | chr_addr_b__map32) | chr_addr_b__map18) | chr_addr_b__map65) | chr_addr_b__map67) | chr_addr_b__map68) | chr_addr_b__map69) | chr_addr_b__map78) | chr_addr_b__map89) | chr_addr_b__map111) | chr_addr_b__vrc1) | chr_addr_b__vrc3) | chr_addr_b__vrc24) | chr_addr_b__vrc6) | chr_addr_b__n163;
+	wire [15:0] flags_out_b = (((((((((((((flags_out_b__map30 | flags_out_b__map32) | flags_out_b__map18) | flags_out_b__map65) | flags_out_b__map67) | flags_out_b__map68) | flags_out_b__map69) | flags_out_b__map78) | flags_out_b__map89) | flags_out_b__map111) | flags_out_b__vrc1) | flags_out_b__vrc3) | flags_out_b__vrc24) | flags_out_b__vrc6) | flags_out_b__n163;
+	wire [15:0] audio_out_b = (((((((((((((audio_out_b__map30 | audio_out_b__map32) | audio_out_b__map18) | audio_out_b__map65) | audio_out_b__map67) | audio_out_b__map68) | audio_out_b__map69) | audio_out_b__map78) | audio_out_b__map89) | audio_out_b__map111) | audio_out_b__vrc1) | audio_out_b__vrc3) | audio_out_b__vrc24) | audio_out_b__vrc6) | audio_out_b__n163;
+	wire [7:0] prg_dout_b = (((((((((((((prg_dout_b__map30 & prg_dout_b__map32) & prg_dout_b__map18) & prg_dout_b__map65) & prg_dout_b__map67) & prg_dout_b__map68) & prg_dout_b__map69) & prg_dout_b__map78) & prg_dout_b__map89) & prg_dout_b__map111) & prg_dout_b__vrc1) & prg_dout_b__vrc3) & prg_dout_b__vrc24) & prg_dout_b__vrc6) & prg_dout_b__n163;
 	wire [7:0] chr_dout_b = {8 {1'b1}};
 	always @(*) begin
 		me = 1024'd0;
@@ -3940,5 +5351,5 @@ module cart_top (
 	end
 	assign SaveStateBus_Dout = (((((((((((((((((((((((((((((((((((((((SaveStateBus_wired_or[0] | SaveStateBus_wired_or[1]) | SaveStateBus_wired_or[2]) | SaveStateBus_wired_or[3]) | SaveStateBus_wired_or[4]) | SaveStateBus_wired_or[5]) | SaveStateBus_wired_or[6]) | SaveStateBus_wired_or[7]) | SaveStateBus_wired_or[8]) | SaveStateBus_wired_or[9]) | SaveStateBus_wired_or[10]) | SaveStateBus_wired_or[11]) | SaveStateBus_wired_or[12]) | SaveStateBus_wired_or[13]) | SaveStateBus_wired_or[14]) | SaveStateBus_wired_or[15]) | SaveStateBus_wired_or[16]) | SaveStateBus_wired_or[17]) | SaveStateBus_wired_or[18]) | SaveStateBus_wired_or[19]) | SaveStateBus_wired_or[20]) | SaveStateBus_wired_or[21]) | SaveStateBus_wired_or[22]) | SaveStateBus_wired_or[23]) | SaveStateBus_wired_or[24]) | SaveStateBus_wired_or[25]) | SaveStateBus_wired_or[26]) | SaveStateBus_wired_or[27]) | SaveStateBus_wired_or[28]) | SaveStateBus_wired_or[29]) | SaveStateBus_wired_or[30]) | SaveStateBus_wired_or[31]) | SaveStateBus_wired_or[32]) | SaveStateBus_wired_or[33]) | SaveStateBus_wired_or[34]) | SaveStateBus_wired_or[35]) | SaveStateBus_wired_or[36]) | SaveStateBus_wired_or[37]) | SaveStateBus_wired_or[38]) | SaveStateBus_wired_or[39]) | SaveStateBus_wired_or[40];
 	assign Savestate_MAPRAMReadData = ((SaveStateRAM_wired_or[0] | SaveStateRAM_wired_or[1]) | SaveStateRAM_wired_or[2]) | SaveStateRAM_wired_or[3];
-	assign cart_hit = ((((((((me[67] | me[190]) | me[68]) | me[69]) | ((me[89] | me[93]) | me[184])) | me[75]) | me[73]) | ((((me[21] | me[22]) | me[23]) | me[25]) | me[27])) | (me[24] | me[26])) | (me[210] | me[19]);
+	assign cart_hit = (((((((((((((me[30] | me[32]) | me[18]) | me[65]) | (me[67] | me[190])) | me[68]) | me[69]) | (((me[152] | me[70]) | me[78]) | me[81])) | ((me[89] | me[93]) | me[184])) | me[111]) | me[75]) | me[73]) | ((((me[21] | me[22]) | me[23]) | me[25]) | me[27])) | (me[24] | me[26])) | (me[210] | me[19]);
 endmodule
