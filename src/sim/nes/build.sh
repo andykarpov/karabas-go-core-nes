@@ -14,6 +14,7 @@ verilator --cc --exe --build -j 0 -O3 --x-assign fast --x-initial unique --noass
 	-I"$RTL/nes" -I"$RTL" -CFLAGS "-O2 -I$OUT" \
 	--Mdir "$OUT/obj" -o sim_nes --top-module tb_nes \
 	"$HERE/tb_nes.v" "$HERE/xilinx_prims.v" "$RTL/nes_system.v" "$RTL/nes/nes.v" "$RTL/nes/GameLoader.v" \
-	"$RTL/nes/memorycontroller.v" "$M/mem/kg_spram.v" "$HERE/sim_nes.cpp" > "$OUT/verilator.log" 2>&1 \
+	"$RTL/nes/memorycontroller.v" "$RTL/cart/cart.v" "$RTL/cart/eReg_SavestateV.v" "$RTL/cart/dpram.v" "$M/mem/kg_tdpram.v" "$M/mem/kg_spram.v" "$M/mem/kg_sdpram.v" \
+	"$M/mcu/img_sdc.v" "$M/mcu/kg_bk_ram.v" "$HERE/sim_nes.cpp" > "$OUT/verilator.log" 2>&1 \
 	|| { grep -E "%Error|error:" "$OUT/verilator.log" | head -20; exit 1; }
 echo "$OUT/obj/sim_nes"

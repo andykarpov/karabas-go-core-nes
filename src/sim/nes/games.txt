@@ -28,10 +28,10 @@ ZX/sd1_go/NES/Jurassic Park.nes | 720 | hash:f13ddeb4 | joy=360:08,370:00,540:08
 # mapper 7 (AxROM)
 Telegram Desktop/Battletoads.nes | 720 | hash:ff098662 | joy=360:08,370:00,540:08,550:00 # intro text
 Telegram Desktop/Battletoads & DD.nes | 720 | hash:a6dd0264 | joy=360:08,370:00,540:08,550:00 # title
-# mapper 24 (VRC6), not in this core
-ZX/sd1_go/NES/Super_Mario_Bros._Two_Playe.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: mapper 24 missing
-# mapper 30 (UNROM 512), not in this core
-ZX/sd1_go/NES/Black Box Challenge.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: mapper 30 missing
+# mapper 24 (VRC6, NES_MiSTer cart_top)
+ZX/sd1_go/NES/Super_Mario_Bros._Two_Playe.nes | 720 | hash:f5590d49 | joy=360:08,370:00,540:08,550:00 # game, 1-1
+# mapper 30 (UNROM 512)
+ZX/sd1_go/NES/Black Box Challenge.nes | 720 | hash:0d1f7e9b | joy=360:08,370:00,540:08,550:00 # title screen
 # mapper 34 (BNROM)
 ZX/sd1_go/NES/Lizard_PD_2018.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: 512K PRG, the core has 256K (F1)
 # mapper 66 (GxROM)
@@ -48,7 +48,7 @@ ZX/sd1_go/NES/R-Type_hack_2019.nes | 720 | hash:e25b74a8 | joy=360:08,370:00,540
 ZX/sd1_go/NES/Cheril_the_Writer_PD_FullRe.nes | 720 | hash:375cddfe | joy=360:08,370:00,540:08,550:00 # level 01
 # mapper 118 (TxSROM)
 ZX/sd1_go/NES/Rick and Morty.nes | 720 | hash:5b3b650d | joy=360:08,370:00,540:08,550:00 # character select
-# mapper 210 (Namco 175/340), not in this core
-ZX/sd1_go/NES/MK2.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: mapper 210 missing
+# mapper 210 in the header, but a JY Company game (90: writes $8500, $D500, waits on the IRQ registers $C502-5)
+ZX/sd1_go/NES/MK2.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: wrong mapper in the header
 # mapper 241, not in this core
 ZX/sd1_go/NES/Allied_Death_Squad_Ch_EngPa.nes | 720 | hash:a042cdc5 | joy=360:08,370:00,540:08,550:00 # black: mapper 241 missing

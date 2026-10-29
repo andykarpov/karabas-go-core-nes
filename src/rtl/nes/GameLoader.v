@@ -16,6 +16,9 @@
 // rom_crc: the CRC-32 (IEEE 802.3, as zlib) of the PRG and CHR ROM bytes, without header and trainer; for the
 // header of the save states. Valid with done.
 //
+// prg_mask / chr_mask: the 2 KB pages of the PRG ROM and the CHR ROM (or RAM) as the mask of the address bits
+// 20:11, for the mappers of NES_MiSTer (rtl/cart/cart.v), as its loader makes them.
+//
 // mapper_flags, the layout of NES_MiSTer (bits 16:0 as the mappers here have always had them):
 //   [7:0] mapper, [10:8] prg_size, [13:11] chr_size (log2 of 16K / 8K pages, max 7), [14] mirroring (1 =
 //   vertical), [15] CHR RAM, [16] four screen, [24:17] NES 2.0 byte 8 (submapper, mapper bits 11:8), [25]
@@ -29,6 +32,8 @@ module GameLoader(input clk, input reset,
                   output error,
                   output trainer,
                   output reg [31:0] rom_crc,   // CRC-32 of the PRG and CHR ROM (as the ROM databases)
+                  output [9:0] prg_mask,
+                  output [9:0] chr_mask,
 						output [15:0] debug_data);
   reg [2:0] state = 0;
   reg [3:0] ctr;
@@ -58,6 +63,18 @@ module GameLoader(input clk, input reset,
   wire [11:0] chrrom = chr_bytes[24:13];  // 8 KB pages
 
   wire has_chr_ram = is_nes20 ? (ines[11][3:0] != 0 || chr_bytes == 0) : (chrrom == 0);
+
+  // the mask of NES_MiSTer: bit i set if the size is more than 2 KB << i
+  function [9:0] mask(input [26:0] size);
+    integer i;
+    begin
+      for (i = 0; i < 10; i = i + 1)
+        mask[i] = (size[26:11] > (16'd1 << i));
+    end
+  endfunction
+  wire [26:0] chr_ram_bytes = is_nes20 ? (27'd64 << ines[11][3:0]) : 27'h2000;
+  assign prg_mask = mask(prg_bytes);
+  assign chr_mask = mask(chr_bytes != 0 ? chr_bytes : chr_ram_bytes);
   assign trainer = ines[6][2];
 
   wire [2:0] prg_size = prgrom <= 1  ? 0 :

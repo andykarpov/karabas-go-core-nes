@@ -1,0 +1,30 @@
+# The instances of cart_top (NES_MiSTer cart.sv) in rtl/cart/cart.v: tools/upstream/gen_cart.py.
+# The mappers of the other numbers come from MultiMapper of rtl/nes/mmu.v meanwhile (docs/PLAN.md, F3).
+
+# Konami VRC
+vrc1        # 75
+vrc3        # 73
+vrc24       # 21, 22, 23, 25, 27
+vrc6        # 24, 26
+snd_vrc6    # VRC6 sound
+
+# Namco
+n163        # 19 (163), 210 (175, 340)
+snd_n163    # Namco 163 sound
+
+# Sunsoft
+map67       # 67 (Sunsoft-3), 190
+map68       # 68 (Sunsoft-4)
+map69       # 69 (FME-7, 5A, 5B)
+map89       # 89, 93, 184
+snd_5bm     # Sunsoft 5B sound
+
+# Homebrew & Discrete
+map30       # 30 (UNROM-512)
+map111      # 111 (GTROM)
+map78       # 78, 70, 152, 81 (Irem 74HC161/32)
+
+# Irem & Jaleco
+map32       # 32 (Irem G-101)
+map65       # 65 (Irem H-3001)
+map18       # 18 (Jaleco SS88006)
