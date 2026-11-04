@@ -54,7 +54,12 @@ architecture rtl of hid_parser is
 	
 	signal data : std_logic_vector(47 downto 0);
 	signal kb_l: std_logic_vector(12 downto 0) := (others => '0');
-	signal kb_r: std_logic_vector(12 downto 0) := (others => '0');	
+	signal kb_r: std_logic_vector(12 downto 0) := (others => '0');
+	-- the six key slots are decoded one per clock by one case: kb_l / kb_r are built in kb_l_acc / kb_r_acc and
+	-- taken every 6 clocks
+	signal kb_l_acc: std_logic_vector(12 downto 0) := (others => '0');
+	signal kb_r_acc: std_logic_vector(12 downto 0) := (others => '0');
+	signal usb_idx : unsigned(2 downto 0) := (others => '0');	
 	
 	signal cnt_autofire : std_logic_vector(20 downto 0) := (others => '0');
 	signal autofire_freq : std_logic := '0';
@@ -68,55 +73,71 @@ begin
 
 	-- map usb hid to keyboard joysticks
 	process(RESET, CLK)
+		variable current_scancode : std_logic_vector(7 downto 0);
 	begin
 		if (RESET = '1') then 
 			
 			kb_l <= (others => '0');
 			kb_r <= (others => '0');
+			kb_l_acc <= (others => '0');
+			kb_r_acc <= (others => '0');
+			usb_idx <= (others => '0');
 			
 		elsif rising_edge(CLK) then
 
-			kb_l <= (others => '0');
-			kb_r <= (others => '0');
+			if usb_idx >= 5 then usb_idx <= (others => '0'); else usb_idx <= usb_idx + 1; end if;
+			if usb_idx = 0 then
+				kb_l <= kb_l_acc; -- the six slots before
+				kb_r <= kb_r_acc;
+				kb_l_acc <= (others => '0');
+				kb_r_acc <= (others => '0');
+			end if;
 
-			for II in 0 to 5 loop		
-				case data((II+1)*8-1 downto II*8) is							
+			case to_integer(usb_idx) is
+				when 0 => current_scancode := KB_DAT0;
+				when 1 => current_scancode := KB_DAT1;
+				when 2 => current_scancode := KB_DAT2;
+				when 3 => current_scancode := KB_DAT3;
+				when 4 => current_scancode := KB_DAT4;
+				when others => current_scancode := KB_DAT5;
+			end case;
+
+				case current_scancode is							
 
 					-- Cursor -> kb_l U/D/L/R
-					when X"50" => kb_l(SC_BTN_LEFT) <= '1';
-					when X"51" => kb_l(SC_BTN_DOWN) <= '1';
-					when X"52" => kb_l(SC_BTN_UP) <= '1';
-					when X"4f" => kb_l(SC_BTN_RIGHT) <= '1';
+					when X"50" => kb_l_acc(SC_BTN_LEFT) <= '1';
+					when X"51" => kb_l_acc(SC_BTN_DOWN) <= '1';
+					when X"52" => kb_l_acc(SC_BTN_UP) <= '1';
+					when X"4f" => kb_l_acc(SC_BTN_RIGHT) <= '1';
 
 					-- Space -> kb_l B
-					when X"2c" => kb_l(SC_BTN_B) <= '1';
+					when X"2c" => kb_l_acc(SC_BTN_B) <= '1';
 					
 					-- Enter -> kb_l A
-					when X"28" => kb_l(SC_BTN_A) <= '1';
+					when X"28" => kb_l_acc(SC_BTN_A) <= '1';
 					
 					-- Letters
-					when X"1a" => kb_l(SC_BTN_UP) <= '1'; -- W					
-					when X"04" => kb_l(SC_BTN_LEFT) <= '1'; -- A
-					when X"16" => kb_l(SC_BTN_DOWN) <= '1'; -- S
-					when X"07" => kb_l(SC_BTN_RIGHT) <= '1'; -- D
-					when X"1d" => kb_l(SC_BTN_A) <= '1'; -- Z
-					when X"1b" => kb_l(SC_BTN_B) <= '1'; -- X
-					when X"06" => kb_l(SC_BTN_START) <= '1'; -- C
-					when X"19" => kb_l(SC_BTN_C) <= '1';	-- V
+					when X"1a" => kb_l_acc(SC_BTN_UP) <= '1'; -- W					
+					when X"04" => kb_l_acc(SC_BTN_LEFT) <= '1'; -- A
+					when X"16" => kb_l_acc(SC_BTN_DOWN) <= '1'; -- S
+					when X"07" => kb_l_acc(SC_BTN_RIGHT) <= '1'; -- D
+					when X"1d" => kb_l_acc(SC_BTN_A) <= '1'; -- Z
+					when X"1b" => kb_l_acc(SC_BTN_B) <= '1'; -- X
+					when X"06" => kb_l_acc(SC_BTN_START) <= '1'; -- C
+					when X"19" => kb_l_acc(SC_BTN_C) <= '1';	-- V
 
-					when X"0c" => kb_r(SC_BTN_UP) <= '1'; -- I
-					when X"0d" => kb_r(SC_BTN_LEFT) <= '1'; -- J
-					when X"0e" => kb_r(SC_BTN_DOWN) <= '1'; -- K
-					when X"0f" => kb_r(SC_BTN_RIGHT) <= '1'; -- L
-					when X"12" => kb_r(SC_BTN_A) <= '1'; -- O
-					when X"13" => kb_r(SC_BTN_B) <= '1'; -- P
-					when X"10" => kb_r(SC_BTN_START) <= '1'; -- M
-					when X"11" => kb_r(SC_BTN_C) <= '1'; -- N
+					when X"0c" => kb_r_acc(SC_BTN_UP) <= '1'; -- I
+					when X"0d" => kb_r_acc(SC_BTN_LEFT) <= '1'; -- J
+					when X"0e" => kb_r_acc(SC_BTN_DOWN) <= '1'; -- K
+					when X"0f" => kb_r_acc(SC_BTN_RIGHT) <= '1'; -- L
+					when X"12" => kb_r_acc(SC_BTN_A) <= '1'; -- O
+					when X"13" => kb_r_acc(SC_BTN_B) <= '1'; -- P
+					when X"10" => kb_r_acc(SC_BTN_START) <= '1'; -- M
+					when X"11" => kb_r_acc(SC_BTN_C) <= '1'; -- N
 					
 					when others => null;
 				end case;
-				end loop;
-		end if;
+						end if;
 	end process;
 
 	-- map L/R MD joysticks and keyboatd to nes joy bus 
