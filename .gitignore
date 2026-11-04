@@ -76,3 +76,4 @@ make_core.py
 
 # the SV given to sv2v by src/tools/upstream/gen_cart.py
 src/rtl/cart/cart_work/
+src/kg_*.stamp

@@ -2,16 +2,20 @@
     "id": "nes",
     "name": "NES",
     "build": "26103001",
-    "bitstream": "karabas_go_top.bin",
     "visible": true,
     "type": "fileloader",
     "dir": "nes",
-    "filename" : "",
+    "filename": "",
     "extensions": ".nes,.ines",
     "order": 6,
     "eeprom_bank": 255,
     "roms": [],
+    "boards": {
+        "go": {"bitstream": "karabas_go_top.bin"},
+        "mini": {"bitstream": "karabas_mini_top.bin"},
+        "minig": {"bitstream": "karabas_minig_top.bin"}
+    },
     "osd": [
-        {"type": "T", "name": "Reset", "hotkey": "F12"}
+    {"type": "T", "name": "Reset", "hotkey": "F12"}
     ]
 }
