@@ -17,7 +17,10 @@ module nes_system #(
 	parameter BK_IDLE_CLOCKS = 27'd21500000,  // ~1 s at 21.5 MHz: save after the last write
 	parameter BK_MAX_CLOCKS = 27'd86000000,   // ~4 s: at the latest after the first write
 	parameter BK_MOUNT_CLOCKS = 27'd21500000, // ~1 s: no answer to CMD_BK_MOUNT, go on without a save
-	parameter BK_GRACE_CLOCKS = 27'd215000    // ~10 ms: no file
+	parameter BK_GRACE_CLOCKS = 27'd215000,   // ~10 ms: no file
+	// the MCU link: 1 = v1 (kg_mcu: kg_bk_ram on the img_* stream), 2 = v2 (kg_mcu2: kg_bk_ram on its
+	// mounter, the sdc_* / bk_* ports below; img_* unused but img_flush)
+	parameter LINK = 1
 ) (
 	input wire clk,
 	input wire reset,              // soft switch reset
@@ -45,6 +48,25 @@ module nes_system #(
 	output wire img_q_wr,
 	output wire [23:0] img_q_di,
 	input wire img_q_ack,
+	// LINK 2: the mounter of kg_mcu2 (SDC_*) and its BK_* inputs
+	input wire [7:0] sdc_img_mounted_i,
+	input wire [63:0] sdc_img_size_i,
+	output wire [7:0] sdc_rd_o,
+	output wire [7:0] sdc_wr_o,
+	output wire [31:0] sdc_sector_o,
+	input wire sdc_busy_i,
+	input wire sdc_done_i,
+	input wire sdc_error_i,
+	input wire [2:0] sdc_slot_i,
+	input wire sdc_byte_in_strobe_i,
+	input wire [8:0] sdc_byte_addr_i,
+	input wire [7:0] sdc_byte_in_data_i,
+	output wire [7:0] sdc_byte_out_data_o,
+	output wire bk_mount_o,
+	output wire bk_flushed_o,
+	output wire [31:0] bk_size_o,
+	output wire [7:0] bk_kind_o,
+	output wire [7:0] bk_result_o,
 	output wire bk_mounted,        // the game has a .sav file
 	output wire bk_saving,         // a sector of it is being written
 	output wire bk_error,          // a write of it failed
@@ -197,7 +219,7 @@ reg clear_done = 1'b0;
   wire bk_wr = memory_write && run_mem && memory_addr[21:15] == 7'b11_1100_0;
 
   kg_bk_ram #(.SLOT(3'd0), .IDLE_CLOCKS(BK_IDLE_CLOCKS), .MAX_CLOCKS(BK_MAX_CLOCKS), .MOUNT_CLOCKS(BK_MOUNT_CLOCKS),
-    .GRACE_CLOCKS(BK_GRACE_CLOCKS), .TIMEOUT(24'd4300000)) bk_ram(
+    .GRACE_CLOCKS(BK_GRACE_CLOCKS), .TIMEOUT(24'd4300000), .LINK(LINK)) bk_ram(
     .clk(clk), .reset(loader_reset),
     .start(bk_start), .size(bk_size), .kind(8'h00), .busy(bk_busy), .mounted(bk_mounted), .saving(bk_saving),
     .save_error(bk_error),
@@ -205,7 +227,14 @@ reg clear_done = 1'b0;
     .mem_req(bk_req), .mem_we(bk_we), .mem_addr(bk_addr), .mem_din(bk_din), .mem_ack(aux_ack), .mem_dout(aux_dout),
     .img_mounted(img_mounted), .img_size(img_size), .img_data_wr(img_data_wr), .img_data_addr(img_data_addr),
     .img_data(img_data), .img_result_wr(img_result_wr), .img_result(img_result), .img_sum(img_sum),
-    .img_flush(img_flush), .img_q_wr(img_q_wr), .img_q_di(img_q_di), .img_q_ack(img_q_ack));
+    .img_flush(img_flush), .img_q_wr(img_q_wr), .img_q_di(img_q_di), .img_q_ack(img_q_ack),
+    .sdc_img_mounted_i(sdc_img_mounted_i), .sdc_img_size_i(sdc_img_size_i), .sdc_rd_o(sdc_rd_o),
+    .sdc_wr_o(sdc_wr_o), .sdc_sector_o(sdc_sector_o), .sdc_busy_i(sdc_busy_i), .sdc_done_i(sdc_done_i),
+    .sdc_error_i(sdc_error_i), .sdc_slot_i(sdc_slot_i), .sdc_byte_in_strobe_i(sdc_byte_in_strobe_i),
+    .sdc_byte_addr_i(sdc_byte_addr_i), .sdc_byte_in_data_i(sdc_byte_in_data_i),
+    .sdc_byte_out_data_o(sdc_byte_out_data_o),
+    .bk_mount(bk_mount_o), .bk_flushed(bk_flushed_o), .bk_size(bk_size_o), .bk_kind(bk_kind_o),
+    .bk_result(bk_result_o));
 
   MemoryController memory(
     .clk(clk), .phase(nes_ce),
