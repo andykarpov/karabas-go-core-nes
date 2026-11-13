@@ -80,6 +80,7 @@ module karabas_mini_top (
 	input wire FT_DE,
 	input wire FT_DISP,
 	output wire FT_RESET,
+	output wire FT_CLK_OUT,
 
 	//---------------------------
 	output wire [2:0] WA,
@@ -106,7 +107,7 @@ module karabas_mini_top (
 	input wire MCU_SCK,
 	inout wire MCU_MOSI,
 	output wire MCU_MISO,	
-	inout wire [4:0] MCU_IO, // [0] burst cs_n, [1] burst ready, [2] sd2 cs_n, [3] ft cs_n, [4] ft clk (mod): input only
+	inout wire [3:0] MCU_IO, // [1] INT of link v2, [2] sd2 cs_n, [3] ft cs_n
 	
 	//---------------------------
 	output wire MIDI_TX,
@@ -121,6 +122,7 @@ module karabas_mini_top (
 	output wire FLASH_WP_N,
 	output wire FLASH_HOLD_N	
 );
+// karabas: made by src/tools/mktops.py from karabas_minig_top.v (do not edit it, change Mini G)
 
 // unused signals
 
@@ -141,19 +143,18 @@ assign WRESET_N = 1'b1;
 assign TAPE_OUT = 1'b0;
 
 assign ESP_RESET_N = 1'bZ;
-assign ESP_BOOT_N = 1'bZ;	
+assign ESP_BOOT_N = 1'bZ;
 
 assign MIDI_TX = 1'b1;
 assign MIDI_CLK = 1'b1;
 assign MIDI_RESET_N = 1'b1;
+assign FT_RESET = 1'b1;
 
 assign FLASH_CS_N = 1'b1;
 assign FLASH_DI = 1'b1;
 assign FLASH_SCK = 1'b0;
 assign FLASH_WP_N = 1'b1;
 assign FLASH_HOLD_N = 1'b1;
-
-assign FT_RESET = 1'b1;
 
 // clock
 wire clk, clk_vga;
@@ -169,7 +170,8 @@ kg_pll #(
  .CLKFBOUT_MULT(37),
  .CLKOUT0_DIVIDE(43),
  .CLKOUT1_DIVIDE(37),
- .BUFG_MASK(6'b000011)
+ .CLKOUT2_DIVIDE(115),
+ .BUFG_MASK(6'b000111)
 ) clock_21mhz(
  .clk_in(CLK_50MHZ),
  .rst(1'b0),
@@ -179,6 +181,10 @@ kg_pll #(
 assign clk = pll_clk[0]; // 21.x
 assign clk_vga = pll_clk[1]; // 25.0	
 assign areset = ~locked;
+
+// the clock of the FT812 (925 / 115 = 8.04 MHz): it must always have one (karabas-go-notes ft-clk-out-required)
+wire clk_8 = pll_clk[2];
+ODDR2 oddr_ft_clk (.Q(FT_CLK_OUT), .C0(clk_8), .C1(~clk_8), .CE(1'b1), .D0(1'b1), .D1(1'b0), .R(1'b0), .S(1'b0));
 
 // hdmi serial clock: 5 x clk_vga and its inverse
 kg_dcm #(
@@ -194,140 +200,106 @@ kg_dcm #(
 	.locked(lockedx5)
 );	
 	 
-//---------- MCU ------------
+//---------- MCU: link v2 (karabas-go-firmware docs/link_v2.md, kg_mcu2); INT on IO1 ------------
 
-wire [7:0] hid_kb_status, hid_kb_dat0, hid_kb_dat1, hid_kb_dat2, hid_kb_dat3, hid_kb_dat4, hid_kb_dat5;
-wire [12:0] joy_l, joy_r;
-wire romloader_act, fileloader_reset;
-wire [31:0] romloader_addr, fileloader_addr;
-wire [7:0] romloader_data, fileloader_data;
-wire romloader_wr, fileloader_wr;
-wire [15:0] softsw_command, osd_command;
-wire ft_vga_on;
+wire [55:0] hid_kbd;
+wire [7:0] hid_kb_status = hid_kbd[7:0], hid_kb_dat0 = hid_kbd[15:8], hid_kb_dat1 = hid_kbd[23:16],
+	hid_kb_dat2 = hid_kbd[31:24], hid_kb_dat3 = hid_kbd[39:32], hid_kb_dat4 = hid_kbd[47:40],
+	hid_kb_dat5 = hid_kbd[55:48];
+wire [15:0] joy_l16, joy_r16;
+wire [12:0] joy_l = joy_l16[12:0], joy_r = joy_r16[12:0];
+wire [1:0] ld_kind;
+wire [7:0] ld_data;
+wire [31:0] ld_addr;
+wire ld_start, ld_wr;
+wire [7:0] softsw_regs;
 wire mcu_busy;
 wire [15:0] debug_data;
-wire [7:0] hwid;
 wire dvi_only;
+wire osd_wr, osd_en, osd_zoom;
+wire [11:0] osd_waddr;
+wire [7:0] osd_wdata;
+wire [23:0] osd_fg, osd_bg;
+wire [1:0] osd_alpha, osd_place;
+wire [4:0] osd_px, osd_ph;
+wire [3:0] osd_py;
+wire [5:0] osd_pw;
+// the .sav file of kg_bk_ram (nes_system, slot 0) on the mounter of kg_mcu2
+wire [7:0] img_flush, sdc_img_mounted, sdc_rd, sdc_wr, sdc_byte_in_data, sdc_byte_out_data, bk_kind, bk_result;
+wire [63:0] sdc_img_size;
+wire [31:0] sdc_sector, bk_size;
+wire sdc_busy, sdc_done, sdc_error, sdc_byte_in_strobe, bk_mount, bk_flushed;
+wire [2:0] sdc_slot;
+wire [8:0] sdc_byte_addr;
 
-// burst transfers from the mcu (karabas-go-firmware docs/burst_protocol.md)
-wire mcu_burst_ready;
-assign MCU_IO[1] = mcu_burst_ready;
+wire mcu_int;
+assign MCU_IO[1] = mcu_int;
 assign MCU_IO[0] = 1'bz;
-assign MCU_IO[4:2] = 3'bzzz;
+assign MCU_IO[3:2] = 2'bzz;
 
-// the file mounter of the mcu, for the .sav files
-wire [7:0] img_mounted, img_data, img_result, img_flush;
-wire [63:0] img_size;
-wire img_data_wr, img_result_wr, img_q_wr, img_q_ack;
-wire [8:0] img_data_addr;
-wire [15:0] img_sum;
-wire [23:0] img_q_di;
+// the game: the file loader (LD kind 1); fileloader_reset of v1 = its START
+wire fileloader_reset = ld_start && ld_kind == 2'd1;
+wire fileloader_wr = ld_wr && ld_kind == 2'd1;
+wire [31:0] fileloader_addr = ld_addr;
+wire [7:0] fileloader_data = ld_data;
 
-kg_mcu #(
-	.BURST_MAX_MHZ(0),
+// clk 21.5 MHz: below 4 x the 16 MHz sck anyway (and kg_l2_link has no bound since modules #41)
+kg_mcu2 #(
+	.CAPS(16'h0002),     // backup RAM: the firmware flushes the .sav before a new game
+	.SW_N(1),
 	.CS_FILTER(3),
-	.ENABLE_RTC(0),
-	.ENABLE_UART(0),
-	.ENABLE_MATRIX(0),
-	.ENABLE_DEBUG(0),
-	.ENABLE_IMG(1),
-	.ENABLE_BK(1),      // kg_bk_ram: the .sav files of the games with a battery
-	.ENABLE_FILE(1),
-	.FILE_CMDS(1),     // FILEBANK / FILEDATA / FILELOADER: the game for GameLoader
-	.FILE_WR_EACH(0),  // a write when the address changes, as mcu.vhd did
-	.FILE_TO_ROM(0),
+	.ENABLE_OSD(1),
+	.ENABLE_IMG(1),      // the .sav files of kg_bk_ram
+	.IMG_OUT_LATENCY(2), // the sector buffer of kg_bk_ram
+	.ENABLE_AUX(1),      // DEBUG_DATA
 	.ENABLE_FT(1),
 	.ENABLE_SD2(1)
 ) mcu(
 	.CLK(clk),
 	.N_RESET(~areset),
-	
+
+	.MCU_SCK(MCU_SCK),
 	.MCU_MOSI(MCU_MOSI),
 	.MCU_MISO(MCU_MISO),
-	.MCU_SCK(MCU_SCK),
 	.MCU_SS(MCU_CS_N),
-	
+	.MCU_INT(mcu_int),
 	.MCU_SPI_FT_SS(MCU_IO[3]),
 	.MCU_SPI_SD2_SS(MCU_IO[2]),
-	.MCU_BURST_CS_N(MCU_IO[0]),
-	.MCU_BURST_READY(mcu_burst_ready),
-	
-	.KB_STATUS(hid_kb_status),
-	.KB_DAT0(hid_kb_dat0),
-	.KB_DAT1(hid_kb_dat1),
-	.KB_DAT2(hid_kb_dat2),
-	.KB_DAT3(hid_kb_dat3),
-	.KB_DAT4(hid_kb_dat4),
-	.KB_DAT5(hid_kb_dat5),
-	
-	.JOY_L(joy_l),
-	.JOY_R(joy_r),
-	
-	.ROMLOADER_ACTIVE(romloader_act),
-	.ROMLOAD_ADDR(romloader_addr),
-	.ROMLOAD_DATA(romloader_data),
-	.ROMLOAD_WR(romloader_wr),
-	
-	.FILELOAD_RESET(fileloader_reset),
-	.FILELOAD_ADDR(fileloader_addr),
-	.FILELOAD_DATA(fileloader_data),
-	.FILELOAD_WR(fileloader_wr),
-	
-	.SOFTSW_COMMAND(softsw_command),	
-	.OSD_COMMAND(osd_command),
-	
-	.BUSY(mcu_busy),
-	
-	.FT_VGA_ON(ft_vga_on),
-	
-	.FT_CS_N(FT_SPI_CS_N),
-	.FT_MOSI(FT_SPI_MOSI),
-	.FT_MISO(FT_SPI_MISO),
-	.FT_SCK(FT_SPI_SCK),
-	
-	.SD2_CS_N(SD_CS_N),
-	.SD2_MOSI(SD_DI),
-	.SD2_MISO(SD_DO),
-	.SD2_SCK(SD_CLK),
-	
-	.HWID(hwid),
-	.DVI_ONLY(dvi_only),
-	
-	.DEBUG_ADDR(16'h00),
-	.DEBUG_DATA(debug_data),
 
-	// the file mounter: the .sav file of kg_bk_ram (nes_system)
-	.IMG_MOUNTED(img_mounted),
-	.IMG_SIZE(img_size),
-	.IMG_DATA_WR(img_data_wr),
-	.IMG_DATA_ADDR(img_data_addr),
-	.IMG_DATA(img_data),
-	.IMG_RESULT_WR(img_result_wr),
-	.IMG_RESULT(img_result),
-	.IMG_SUM(img_sum),
-	.IMG_FLUSH(img_flush),
-	.IMG_Q_WR(img_q_wr),
-	.IMG_Q_DI(img_q_di),
-	.IMG_Q_ACK(img_q_ack),
+	.SW(softsw_regs), .SW_WR(), .SW_INDEX(), .SW_VALUE(), .HW_ID(), .DVI_ONLY(dvi_only), .CORE_BUILD(), .FW_BUILD(),
+	.BUSY(mcu_busy), .BTNS(), .RELOAD_REQ(1'b0), .RELOAD_CORE(8'd0),
 
-	// not used by this core
-	.RTC_A(8'h00),
-	.RTC_DI(8'h00),
-	.RTC_CS(1'b0),
-	.RTC_WR_N(1'b1),
-	.UART_TX_DATA(8'h00),
-	.UART_TX_WR(1'b0),
-	.UART_TX_MODE(1'b0),
-	.UART_DLM(8'h00),
-	.UART_DLL(8'h00),
-	.UART_DLM_WR(1'b0),
-	.UART_DLL_WR(1'b0),
-	.MATRIX_CMD(24'h000000),
-	.MATRIX_CMD_WR(1'b0),
-	.ESP_UART_RX_DATA(8'h00),
-	.ESP_UART_RX_WR(1'b0),
-	.FLASHBOOT_START(1'b0),
-	.FLASHBOOT_COREID(5'd0)
+	.KBD(hid_kbd), .KBD_WR(), .PS2_CODE(), .PS2_KIND(), .PS2_WR(),
+	.MS_X(), .MS_Y(), .MS_Z(), .MS_B(), .MS_WR(),
+	.JOY_L(joy_l16), .JOY_R(joy_r16), .JOY_WR(),
+	.PS2_CMD(16'h0000), .PS2_CMD_WR(1'b0),
+
+	.LD_KIND(ld_kind), .LD_SLOT(), .LD_SIZE(), .LD_START(ld_start), .LD_ACTIVE(), .LD_END(),
+	.LD_ADDR(ld_addr), .LD_DATA(ld_data), .LD_WR(ld_wr), .LD_READY(1'b1),
+
+	.OSD_WR(osd_wr), .OSD_WADDR(osd_waddr), .OSD_WDATA(osd_wdata), .OSD_EN(osd_en),
+	.OSD_FG(osd_fg), .OSD_BG(osd_bg), .OSD_ALPHA(osd_alpha), .OSD_PX(osd_px), .OSD_PY(osd_py),
+	.OSD_PW(osd_pw), .OSD_PH(osd_ph), .OSD_PLACE(osd_place), .OSD_ZOOM(osd_zoom),
+
+	.SDC_IMG_MOUNTED(sdc_img_mounted), .SDC_IMG_SIZE(sdc_img_size),
+	.SDC_RD(sdc_rd), .SDC_WR(sdc_wr), .SDC_SECTOR(sdc_sector),
+	.SDC_BUSY(sdc_busy), .SDC_DONE(sdc_done), .SDC_ERROR(sdc_error), .SDC_SLOT(sdc_slot),
+	.SDC_BYTE_IN_STROBE(sdc_byte_in_strobe), .SDC_BYTE_ADDR(sdc_byte_addr),
+	.SDC_BYTE_IN_DATA(sdc_byte_in_data), .SDC_BYTE_OUT_DATA(sdc_byte_out_data),
+	.IMG_WP(), .IMG_PHYS_WR(), .IMG_PHYS(), .IMG_FLUSH(img_flush), .FDD_CHNG_WR(), .FDD_CHNG(),
+	.FDD_CHNG_REQ(1'b0), .FDD_CHNG_DS(2'd0),
+	.BK_MOUNT(bk_mount), .BK_FLUSHED(bk_flushed), .BK_SLOT(3'd0), .BK_SIZE(bk_size),
+	.BK_KIND(bk_kind), .BK_RESULT(bk_result),
+	.IMG_ACTIVE(),
+
+	.PORT_OUT_DATA(), .PORT_OUT_WR(), .PORT_OUT_READY(4'b1111), .PORT_IN_DATA(32'd0), .PORT_IN_WR(4'd0),
+	.PORT_CFG(128'd0), .PORT_IN_FULL(), .PORT_STAT(), .PORT_STAT_WR(),
+	.RTC_A(8'd0), .RTC_DI(8'd0), .RTC_CS(1'b0), .RTC_WR_N(1'b1), .RTC_DO(),
+	.MATRIX_CMD(24'd0), .MATRIX_CMD_WR(1'b0), .DEBUG_ADDR(16'd0), .DEBUG_DATA(debug_data),
+
+	.FT_SPI_ON(), .FT_VGA_ON(), .FT_RESET(),
+	.FT_SCK(FT_SPI_SCK), .FT_MOSI(FT_SPI_MOSI), .FT_MISO(FT_SPI_MISO), .FT_CS_N(FT_SPI_CS_N),
+	.SD2_SCK(SD_CLK), .SD2_MOSI(SD_DI), .SD2_MISO(SD_DO), .SD2_CS_N(SD_CS_N)
 );
 
 //---------- HID Keyboard/Joy parser ------------
@@ -358,14 +330,7 @@ hid_parser hid_parser(
 wire kb_reset;
 wire btn_reset_n;
 
-// register 0, bit 0: reset
-wire [7:0] softsw_regs;
-kg_soft_switches #(.N(1)) soft_switches(
-	.clk(clk),
-	.command(softsw_command),
-	.regs(softsw_regs),
-	.upd()
-);
+// register 0, bit 0: reset (the SW registers of kg_mcu2)
 assign kb_reset = softsw_regs[0];
 
 assign btn_reset_n = ~kb_reset & ~mcu_busy;
@@ -375,19 +340,9 @@ assign btn_reset_n = ~kb_reset & ~mcu_busy;
 wire [15:0] audio_out_l, audio_out_r;
 wire [31:0] audio_mix_l, audio_mix_r;
 
-kg_sigma_delta_dac dac_l(
-	.clk(clk),
-	.reset(areset),
-	.din({2'b00, !audio_mix_l[15], audio_mix_l[14:4], 2'b00}),
-	.dout(AUDIO_L)
-);
-
-kg_sigma_delta_dac dac_r(
-	.clk(clk),
-	.reset(areset),
-	.din({2'b00, !audio_mix_r[15], audio_mix_r[14:4], 2'b00}),
-	.dout(AUDIO_R)
-);
+// Mini has no I2S DAC: sigma-delta outputs into an RC filter, the mix of the NES and the ADC
+kg_sigma_delta_dac dac_l(.clk(clk), .reset(areset), .din({2'b00, !audio_mix_l[15], audio_mix_l[14:4], 2'b00}), .dout(AUDIO_L));
+kg_sigma_delta_dac dac_r(.clk(clk), .reset(areset), .din({2'b00, !audio_mix_r[15], audio_mix_r[14:4], 2'b00}), .dout(AUDIO_R));
 
 // ------- PCM1808 ADC ---------
 wire signed [23:0] adc_l, adc_r;
@@ -408,8 +363,8 @@ i2s_transceiver adc(
 // ------- ADC_CLK output buf
 ODDR2 oddr_adc2(
 	.Q(ADC_CLK),
-	.C0(clk_bus),
-	.C1(~clk_bus),
+	.C0(clk),     // was clk_bus: no such net (an implicit wire, no clock on ADC_CLK)
+	.C1(~clk),
 	.CE(1'b1),
 	.D0(1'b1),
 	.D1(1'b0),
@@ -426,14 +381,18 @@ assign audio_mix_r = audio_out_r[15:0] + adc_r[23:8];
 wire [7:0] video_r, video_g, video_b, osd_r, osd_g, osd_b;
 wire video_hsync, video_vsync, video_blank;
 
-overlay overlay(
-	.CLK(clk),
-	.CLK_VGA(clk_vga),
-	.RGB_I({video_r[7:0], video_g[7:0], video_b[7:0]}),
-	.RGB_O({osd_r[7:0], osd_g[7:0], osd_b[7:0]}),
-	.HSYNC_I(video_hsync),
-	.VSYNC_I(video_vsync),
-	.OSD_COMMAND(osd_command)
+// the bitmap OSD of link v2 (kg_l2_osd_overlay): written in clk, drawn in clk_vga, centred in de,
+// 2 clocks of latency with its syncs and de (negative syncs of vga.vhd pass through)
+wire osd_hs, osd_vs, osd_de;
+kg_l2_osd_overlay osd (
+	.wclk(clk),
+	.osd_wr(osd_wr), .osd_waddr(osd_waddr), .osd_wdata(osd_wdata), .osd_en(osd_en),
+	.osd_fg(osd_fg), .osd_bg(osd_bg), .osd_alpha(osd_alpha), .osd_px(osd_px), .osd_py(osd_py),
+	.osd_pw(osd_pw), .osd_ph(osd_ph), .osd_place(osd_place), .osd_zoom(osd_zoom),
+	.icon_on(8'd0), .icon_act(8'd0),
+	.clk(clk_vga),
+	.rgb_i({video_r, video_g, video_b}), .hs_i(video_hsync), .vs_i(video_vsync), .de_i(~video_blank),
+	.rgb_o({osd_r, osd_g, osd_b}), .hs_o(osd_hs), .vs_o(osd_vs), .de_o(osd_de)
 );
 
 //--------- NES --------------
@@ -444,7 +403,7 @@ wire [15:0] sample;
 wire [5:0] color;
 wire loader_done, loader_fail;
 
-nes_system nes_system(
+nes_system #(.LINK(2)) nes_system(
 	.clk(clk),
 	.reset(kb_reset),
 	.loader_reset(fileloader_reset),
@@ -453,18 +412,24 @@ nes_system nes_system(
 	.loader_done(loader_done),
 	.loader_fail(loader_fail),
 	.debug_data(debug_data),
-	.img_mounted(img_mounted),
-	.img_size(img_size),
-	.img_data_wr(img_data_wr),
-	.img_data_addr(img_data_addr),
-	.img_data(img_data),
-	.img_result_wr(img_result_wr),
-	.img_result(img_result),
-	.img_sum(img_sum),
+	.img_mounted(8'd0),
+	.img_size(64'd0),
+	.img_data_wr(1'b0),
+	.img_data_addr(9'd0),
+	.img_data(8'd0),
+	.img_result_wr(1'b0),
+	.img_result(8'd0),
+	.img_sum(16'd0),
 	.img_flush(img_flush),
-	.img_q_wr(img_q_wr),
-	.img_q_di(img_q_di),
-	.img_q_ack(img_q_ack),
+	.img_q_wr(),
+	.img_q_di(),
+	.img_q_ack(1'b0),
+	.sdc_img_mounted_i(sdc_img_mounted), .sdc_img_size_i(sdc_img_size), .sdc_rd_o(sdc_rd), .sdc_wr_o(sdc_wr),
+	.sdc_sector_o(sdc_sector), .sdc_busy_i(sdc_busy), .sdc_done_i(sdc_done), .sdc_error_i(sdc_error),
+	.sdc_slot_i(sdc_slot), .sdc_byte_in_strobe_i(sdc_byte_in_strobe), .sdc_byte_addr_i(sdc_byte_addr),
+	.sdc_byte_in_data_i(sdc_byte_in_data), .sdc_byte_out_data_o(sdc_byte_out_data),
+	.bk_mount_o(bk_mount), .bk_flushed_o(bk_flushed), .bk_size_o(bk_size), .bk_kind_o(bk_kind),
+	.bk_result_o(bk_result),
 	.bk_mounted(),
 	.bk_saving(),
 	.bk_error(),
@@ -502,52 +467,38 @@ assign MRD_N = 2'b00;
   
 // ------------ HDMI ----------------
 
-wire [9:0] tmds_red, tmds_green, tmds_blue;
-
-hdmi hdmi(
-	.I_CLK_PIXEL(clk_vga),
-	.I_R(osd_r),
-	.I_G(osd_g),
-	.I_B(osd_b),
-	.I_BLANK(video_blank),
-	.I_HSYNC(video_hsync),
-	.I_VSYNC(video_vsync),
-	.I_AUDIO_ENABLE(1'b1),
-	.I_AUDIO_PCM_L(audio_mix_l[15:0]),
-	.I_AUDIO_PCM_R(audio_mix_r[15:0]),
-	.O_RED(tmds_red),
-	.O_GREEN(tmds_green),
-	.O_BLUE(tmds_blue)
-);
-
-wire [9:0] dvi_red, dvi_green, dvi_blue;
-
-// dvi_only (mcu, clk) into clk_vga: the select of the encoders below goes into the serialisers on clk_hdmi
-// and must come from a clk_vga register, as the encoded words do
+// hdmi_tx of modules (zhdmi): the audio at 48 kHz of clk_vga (+ 48 per clock, modulo 25000)
+reg [15:0] aud_acc = 16'd0;
+reg aud_stb = 1'b0;
+always @(posedge clk_vga) begin
+	aud_stb <= 1'b0;
+	if (aud_acc >= 16'd25000 - 16'd48) begin
+		aud_acc <= aud_acc + 16'd48 - 16'd25000;
+		aud_stb <= 1'b1;
+	end
+	else
+		aud_acc <= aud_acc + 16'd48;
+end
 wire dvi_only_vga;
 kg_sync dvi_only_sync(.clk(clk_vga), .d(dvi_only), .q(dvi_only_vga));
 
-dvi dvi(
-	.CLK(clk_vga),
-	.RESET(areset),
-	.RGB({osd_r,osd_g,osd_b}),
-	.HSYNC(video_hsync),
-	.VSYNC(video_vsync),
-	.DE(~video_blank),
-	.ENC_RED(dvi_red),
-	.ENC_GREEN(dvi_green),
-	.ENC_BLUE(dvi_blue)
+hdmi_tx #(.SAMPLE_FREQ(48000), .INPUT_REG(1)) hdmi (
+	.clk(clk_vga),
+	.sclk(clk_hdmi),
+	.sclk_n(clk_hdmi_n),
+	.reset(~lockedx5),
+	.rgb({osd_r, osd_g, osd_b}),
+	.vsync(osd_vs),
+	.hsync(osd_hs),
+	.de(osd_de),
+	.audio_en(~dvi_only_vga),
+	.audio_l({audio_out_l, 8'd0}),
+	.audio_r({audio_out_r, 8'd0}),
+	.audio_clk(aud_stb),
+	.tx_clk_n(TMDS_N[3]),
+	.tx_clk_p(TMDS_P[3]),
+	.tx_d_n(TMDS_N[2:0]),
+	.tx_d_p(TMDS_P[2:0])
 );
-
-hdmi_out_xilinx hdmiio(
-	.clock_pixel_i(clk_vga),
-	.clock_tdms_i(clk_hdmi),
-	.clock_tdms_n_i(clk_hdmi_n),
-	.red_i(dvi_only_vga ? dvi_red : tmds_red),
-	.green_i(dvi_only_vga ? dvi_green : tmds_green),
-	.blue_i(dvi_only_vga ? dvi_blue : tmds_blue),
-	.tmds_out_p(TMDS_P),
-	.tmds_out_n(TMDS_N)
-);	
 
 endmodule
