@@ -451,6 +451,6 @@ assign VGA_G = osd_g;
 assign VGA_B = osd_b;
 assign VGA_HS = osd_hs;
 assign VGA_VS = osd_vs;
-ODDR2 oddr_v_clk (.Q(V_CLK), .C0(clk_vga), .C1(~clk_vga), .CE(1'b1), .D0(1'b1), .D1(1'b0), .R(1'b0), .S(1'b0));
+ODDR2 oddr_v_clk (.Q(V_CLK), .C0(clk_vga), .C1(~clk_vga), .CE(1'b1), .D0(1'b0), .D1(1'b1), .R(1'b0), .S(1'b0));
 
 endmodule
